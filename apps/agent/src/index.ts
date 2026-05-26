@@ -51,9 +51,14 @@ if (mode === 'voice') {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
   await orchestrator.start();
-} else {
+} else if (process.stdin.isTTY) {
+  // Interactive terminal: run the text REPL.
   const { runChat } = await import('./cli/chat.js');
   await runChat(convo);
   ws?.close();
   process.exit(0);
+} else {
+  // Headless (no terminal, e.g. background/service): just serve the kiosk over
+  // WebSocket. The WS server keeps the process alive.
+  log.info('headless chat server — kiosk can connect over WebSocket');
 }

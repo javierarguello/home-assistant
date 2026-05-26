@@ -41,7 +41,7 @@ async function startServer(): Promise<void> {
       '-m', config.stt.whisperModel,
       '--host', url.hostname,
       '--port', url.port || '8088',
-      '-l', config.assistant.language,
+      '-l', config.stt.language,
       '-t', String(config.stt.whisperThreads),
       '-nt',
     ],

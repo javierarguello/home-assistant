@@ -10,7 +10,8 @@ export async function transcribeCloud(wavPath: string): Promise<string> {
   const bytes = await readFile(wavPath);
   const form = new FormData();
   form.append('model', config.stt.model);
-  form.append('language', config.assistant.language);
+  // Omit language for 'auto' so the cloud STT detects it.
+  if (config.stt.language !== 'auto') form.append('language', config.stt.language);
   form.append('file', new Blob([bytes], { type: 'audio/wav' }), basename(wavPath));
 
   const res = await fetch(`${config.stt.baseURL}/audio/transcriptions`, {

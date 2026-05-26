@@ -19,8 +19,10 @@ WHISPER_MODEL_NAME="${WHISPER_MODEL_NAME:-base}"          # tiny | base | small
 WHISPER_MODEL="$REPO_ROOT/models/ggml-${WHISPER_MODEL_NAME}.bin"
 PIPER_VENV="$REPO_ROOT/vendor/piper-venv"
 PIPER_BIN="$PIPER_VENV/bin/piper"
-PIPER_VOICE_NAME="${PIPER_VOICE_NAME:-es_MX-ald-medium}"
+PIPER_VOICE_NAME="${PIPER_VOICE_NAME:-es_AR-daniela-high}"
 PIPER_VOICE="$REPO_ROOT/voices/${PIPER_VOICE_NAME}.onnx"
+PIPER_VOICE_EN_NAME="${PIPER_VOICE_EN_NAME:-en_US-amy-medium}"
+PIPER_VOICE_EN="$REPO_ROOT/voices/${PIPER_VOICE_EN_NAME}.onnx"
 WW_VENV="$REPO_ROOT/vendor/wakeword-venv"
 WAKE_WORD_MODEL="${WAKE_WORD_MODEL:-hey_jarvis}"
 OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
@@ -135,7 +137,12 @@ if [ ! -f "$PIPER_VOICE" ]; then
   download_piper_voice "$PIPER_VOICE_NAME" "$REPO_ROOT/voices" \
     || warn "Piper voice download failed (check PIPER_VOICE_NAME / network)"
 fi
+if [ ! -f "$PIPER_VOICE_EN" ]; then
+  download_piper_voice "$PIPER_VOICE_EN_NAME" "$REPO_ROOT/voices" \
+    || warn "English voice download failed (check PIPER_VOICE_EN_NAME / network)"
+fi
 [ -f "$PIPER_VOICE" ] && ok "voice: ${PIPER_VOICE_NAME}.onnx" || warn "no Piper voice yet"
+[ -f "$PIPER_VOICE_EN" ] && ok "voice: ${PIPER_VOICE_EN_NAME}.onnx (English)"
 
 # ---------------------------------------------------------------------------
 log "7/8  Ollama (local LLM, optional)"
@@ -157,9 +164,11 @@ set_env WHISPER_SERVER_BINARY "$WHISPER_DIR/build/bin/whisper-server"
 set_env WHISPER_BINARY "$WHISPER_DIR/build/bin/whisper-cli"
 set_env WHISPER_MODEL "$WHISPER_MODEL"
 set_env WHISPER_THREADS 4
+set_env STT_LANGUAGE auto
 set_env TTS_PROVIDER piper
 set_env PIPER_BINARY "$PIPER_BIN"
 set_env PIPER_VOICE "$PIPER_VOICE"
+set_env TTS_VOICE_EN "$PIPER_VOICE_EN"
 set_env WAKE_WORD_ENGINE openwakeword
 set_env WAKE_WORD "$WAKE_WORD_MODEL"
 set_env WAKEWORD_PYTHON "$WW_VENV/bin/python"

@@ -9,7 +9,7 @@ export async function transcribeWhisperLocal(wavPath: string): Promise<string> {
   const args = [
     '-m', config.stt.whisperModel,
     '-f', wavPath,
-    '-l', config.assistant.language,
+    '-l', config.stt.language,
     '-t', String(config.stt.whisperThreads),
     '-nt', // no timestamps: print plain text
   ];

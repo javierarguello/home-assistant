@@ -3,6 +3,8 @@ dist/
 build/
 logs/
 vendor/
+__pycache__/
+*.pyc
 *.log
 .DS_Store
 

@@ -152,11 +152,16 @@ npm run build --workspace apps/kiosk
 npm run preview --workspace apps/kiosk    # serves on http://localhost:5173
 ```
 
-Launch Chromium fullscreen pointing at it:
+Launch Chromium fullscreen pointing at it (the `--autoplay-policy` flag lets the
+kiosk play its listening chimes without a tap):
 
 ```bash
-chromium-browser --kiosk --noerrdialogs --disable-infobars http://localhost:5173
+chromium-browser --kiosk --noerrdialogs --disable-infobars \
+  --autoplay-policy=no-user-gesture-required http://localhost:5173
 ```
+
+Run the kiosk browser from the desktop autostart (`~/.config/autostart/`) or a
+second service that waits for the graphical session.
 
 ## 6. Run on boot (systemd services)
 
@@ -196,19 +201,3 @@ journalctl --user -u home-assistant-agent -f      # service stdout/stderr
 
 Tune verbosity with `LOG_LEVEL=debug` and mirror everything to the console with
 `LOG_CONSOLE=true` (what `npm run live` sets).
-
-## 8. Kiosk on the touchscreen
-
-```bash
-npm run build --workspace apps/kiosk
-npm run preview --workspace apps/kiosk    # serves on http://localhost:5173
-```
-
-Launch Chromium fullscreen pointing at it:
-
-```bash
-chromium-browser --kiosk --noerrdialogs --disable-infobars http://localhost:5173
-```
-
-Run the kiosk browser from the desktop autostart (`~/.config/autostart/`) or a
-second service that waits for the graphical session.

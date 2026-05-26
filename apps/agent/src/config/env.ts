@@ -95,6 +95,8 @@ export const config = {
 
   stt: {
     provider: (process.env.STT_PROVIDER as SttProvider) ?? 'whisper-local',
+    /** Language for transcription. 'auto' lets whisper detect (multilingual). */
+    language: process.env.STT_LANGUAGE ?? 'auto',
     /** Path to the whisper.cpp `whisper-cli` binary (local). */
     whisperBinary: process.env.WHISPER_BINARY ?? 'whisper-cli',
     /** Path to the GGML model, e.g. models/ggml-base.bin (local). */
@@ -116,8 +118,10 @@ export const config = {
     provider: (process.env.TTS_PROVIDER as TtsProvider) ?? 'piper',
     /** Path to the Piper binary (local). */
     piperBinary: process.env.PIPER_BINARY ?? 'piper',
-    /** Path to the Piper voice `.onnx` model (local). */
-    piperVoice: process.env.PIPER_VOICE ?? 'voices/es_ES-default.onnx',
+    /** Default Piper voice `.onnx` (used for Spanish / when language unknown). */
+    piperVoice: process.env.PIPER_VOICE ?? 'voices/es_AR-daniela-high.onnx',
+    /** English Piper voice; used when the response text is detected as English. */
+    voiceEn: process.env.TTS_VOICE_EN ?? '',
     /** Cloud TTS (OpenAI-compatible /audio/speech). */
     baseURL: process.env.TTS_BASE_URL ?? 'https://api.openai.com/v1',
     apiKey: process.env.TTS_API_KEY ?? '',

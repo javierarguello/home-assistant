@@ -73,6 +73,9 @@ function createOpenWakeWordSource(): WakeSource {
           case 'ready':
             log.info('wake-word ready (openWakeWord)', { model: evt.model });
             break;
+          case 'score':
+            log.debug('score', { score: evt.score });
+            break;
           case 'wake':
             log.info('wake word detected', { score: evt.score });
             onWake?.();

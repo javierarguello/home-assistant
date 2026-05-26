@@ -41,7 +41,8 @@ INPUT_DEVICE = os.environ.get("WAKEWORD_INPUT_DEVICE") or None
 
 
 def emit(obj):
-    sys.stdout.write(json.dumps(obj) + "\n")
+    # default= handles numpy scalars (e.g. float32 scores) which aren't JSON-native.
+    sys.stdout.write(json.dumps(obj, default=lambda o: o.item() if hasattr(o, "item") else str(o)) + "\n")
     sys.stdout.flush()
 
 
@@ -90,6 +91,9 @@ def main():
                 frame = data[:, 0]
                 scores = model.predict(frame)
                 score = max(scores.values()) if scores else 0.0
+                if score >= 0.1:
+                    # Near-miss/debug visibility (shown at debug log level).
+                    emit({"event": "score", "score": round(float(score), 3)})
                 if score < THRESHOLD:
                     continue
 

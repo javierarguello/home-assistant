@@ -6,6 +6,7 @@
 #   bash scripts/stop.sh      (or:  npm run stop)
 #
 set -uo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "Stopping home-assistant…"
 
@@ -30,11 +31,14 @@ stop_pat() {
   fi
 }
 
-stop_pat "agent"          "apps/agent/src/index.ts"
+# Match the agent by its tsx entrypoint (cmdline is `… tsx src/index.ts`, run
+# with cwd=apps/agent, so the path is relative). Match the kiosk by the repo's
+# vite binary path. Patterns must match the actual argv, not the working dir.
+stop_pat "agent"          "tsx src/index.ts"
 stop_pat "agent launcher" "scripts/run-agent.sh"
 stop_pat "wakeword side-car" "wakeword_runner.py"
 stop_pat "whisper-server" "whisper-server"
-stop_pat "kiosk (vite)"   "apps/kiosk"
+stop_pat "kiosk (vite)"   "$REPO_ROOT/node_modules/.bin/vite"
 stop_pat "kiosk (browser)" "chromium.*--kiosk"
 
 echo "Done."
