@@ -1,0 +1,31 @@
+{
+  "name": "@home-assistant/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/index.ts",
+    "chat": "node --env-file-if-exists=../../.env --import tsx src/index.ts --mode=chat",
+    "voice": "node --env-file-if-exists=../../.env --import tsx src/index.ts --mode=voice",
+    "stt": "node --env-file-if-exists=../../.env --import tsx src/cli/stt.ts",
+    "tts": "node --env-file-if-exists=../../.env --import tsx src/cli/tts.ts",
+    "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/adk": "^1.1.0",
+    "@google/genai": "^1.0.0",
+    "@home-assistant/shared": "*",
+    "@picovoice/porcupine-node": "^4.0.2",
+    "@picovoice/pvrecorder-node": "^1.2.8",
+    "openai": "^4.77.0",
+    "ws": "^8.18.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

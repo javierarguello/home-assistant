@@ -1,0 +1,24 @@
+node_modules/
+dist/
+build/
+logs/
+vendor/
+*.log
+.DS_Store
+
+# Local config / secrets
+.env
+.env.local
+*.local
+
+# Model + voice assets (downloaded per-machine, see docs/raspberry-pi-setup.md)
+models/
+voices/
+*.onnx
+*.onnx.json
+*.bin
+*.ppn
+
+# Audio scratch
+*.wav
+*.tmp.wav

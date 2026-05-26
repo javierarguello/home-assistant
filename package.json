@@ -1,0 +1,26 @@
+{
+  "name": "home-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-or-cloud personal voice assistant for Raspberry Pi 5 (Node + TypeScript + Google ADK).",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:agent": "npm run dev --workspace apps/agent",
+    "dev:kiosk": "npm run dev --workspace apps/kiosk",
+    "chat": "npm run chat --workspace apps/agent",
+    "setup": "bash scripts/setup-pi.sh",
+    "deploy": "bash scripts/deploy.sh",
+    "live": "bash scripts/run-live.sh",
+    "stop": "bash scripts/stop.sh"
+  },
+  "license": "MIT"
+}
