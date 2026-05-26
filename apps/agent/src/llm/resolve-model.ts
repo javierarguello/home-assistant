@@ -16,6 +16,7 @@ export function resolveModel(agentKey: string): OpenAiCompatibleLlm {
     apiKey: cfg.apiKey,
     temperature: cfg.temperature,
     maxTokens: cfg.maxTokens,
+    think: cfg.think,
     // Vertex AI via the gcloud CLI: mint a fresh bearer token per request.
     getAuthToken: cfg.auth === 'gcloud' ? createGcloudTokenProvider(cfg.gcloudAccount) : undefined,
   });

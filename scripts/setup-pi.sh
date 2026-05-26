@@ -25,7 +25,7 @@ PIPER_VOICE_EN_NAME="${PIPER_VOICE_EN_NAME:-en_US-amy-medium}"
 PIPER_VOICE_EN="$REPO_ROOT/voices/${PIPER_VOICE_EN_NAME}.onnx"
 WW_VENV="$REPO_ROOT/vendor/wakeword-venv"
 WAKE_WORD_MODEL="${WAKE_WORD_MODEL:-hey_jarvis}"
-OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:1b}"
 
 log()  { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
 ok()   { printf '    \033[0;32m✓\033[0m %s\n' "$*"; }

@@ -25,6 +25,8 @@ export interface ModelConfig {
   auth?: 'gcloud';
   /** gcloud account to mint the token from (when auth='gcloud'). */
   gcloudAccount?: string;
+  /** Ollama: disable model thinking/reasoning output (cleaner, faster). */
+  think?: boolean;
 }
 
 function num(value: string | undefined): number | undefined {
@@ -42,6 +44,7 @@ function num(value: string | undefined): number | undefined {
 export function readModelConfig(agentKey: string): ModelConfig {
   const get = (suffix: string) => process.env[`${agentKey}_${suffix}`];
   const auth = get('AUTH') ?? process.env.LLM_AUTH;
+  const think = get('THINK') ?? process.env.LLM_THINK;
   return {
     model: get('MODEL') ?? process.env.LLM_MODEL ?? 'llama3.2:3b',
     baseURL: get('BASE_URL') ?? process.env.LLM_BASE_URL ?? 'http://localhost:11434/v1',
@@ -50,6 +53,7 @@ export function readModelConfig(agentKey: string): ModelConfig {
     maxTokens: num(get('MAX_TOKENS') ?? process.env.LLM_MAX_TOKENS),
     auth: auth === 'gcloud' ? 'gcloud' : undefined,
     gcloudAccount: get('GCLOUD_ACCOUNT') ?? process.env.LLM_GCLOUD_ACCOUNT,
+    think: think === 'true' ? true : think === 'false' ? false : undefined,
   };
 }
 

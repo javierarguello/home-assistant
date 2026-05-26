@@ -16,6 +16,8 @@ import type { BaseLlmConnection, LlmRequest, LlmResponse } from '@google/adk';
 import type { Content, Part } from '@google/genai';
 import OpenAI from 'openai';
 import type {
+  ChatCompletionCreateParamsNonStreaming,
+  ChatCompletionCreateParamsStreaming,
   ChatCompletionMessageParam,
   ChatCompletionTool,
 } from 'openai/resources/chat/completions';
@@ -31,6 +33,8 @@ export interface OpenAiCompatibleLlmParams {
   maxTokens?: number;
   /** Extra headers (e.g. `HTTP-Referer` for OpenRouter). */
   headers?: Record<string, string>;
+  /** Ollama pass-through: disable model "thinking"/reasoning output. */
+  think?: boolean;
   /**
    * Optional dynamic bearer token (e.g. a gcloud access token for Vertex AI).
    * When set, it overrides `apiKey` per request and is awaited each call so it
@@ -43,6 +47,7 @@ export class OpenAiCompatibleLlm extends BaseLlm {
   private readonly client: OpenAI;
   private readonly temperature?: number;
   private readonly maxTokens?: number;
+  private readonly think?: boolean;
   private readonly getAuthToken?: () => Promise<string>;
 
   constructor(params: OpenAiCompatibleLlmParams) {
@@ -54,6 +59,7 @@ export class OpenAiCompatibleLlm extends BaseLlm {
     });
     this.temperature = params.temperature;
     this.maxTokens = params.maxTokens;
+    this.think = params.think;
     this.getAuthToken = params.getAuthToken;
   }
 
@@ -85,11 +91,13 @@ export class OpenAiCompatibleLlm extends BaseLlm {
       ...(tools.length ? { tools } : {}),
       ...(this.temperature != null ? { temperature: this.temperature } : {}),
       ...(this.maxTokens != null ? { max_tokens: this.maxTokens } : {}),
+      // `think` is a non-OpenAI Ollama field; the SDK forwards it in the body.
+      ...(this.think !== undefined ? { think: this.think } : {}),
     };
 
     if (!stream) {
       const resp = await this.client.chat.completions.create(
-        { ...base, stream: false },
+        { ...base, stream: false } as ChatCompletionCreateParamsNonStreaming,
         options,
       );
       const choice = resp.choices[0];
@@ -100,7 +108,7 @@ export class OpenAiCompatibleLlm extends BaseLlm {
     // Streaming: emit partial text chunks, then a final aggregated response
     // that also carries any tool calls.
     const completion = await this.client.chat.completions.create(
-      { ...base, stream: true },
+      { ...base, stream: true } as ChatCompletionCreateParamsStreaming,
       options,
     );
 
