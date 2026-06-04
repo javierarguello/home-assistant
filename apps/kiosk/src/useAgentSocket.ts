@@ -15,6 +15,13 @@ export interface WakeMeter {
   rms: number;
 }
 
+/** Per-stage latency (ms) of the most recent turn, for the debug overlay. */
+export interface Metrics {
+  stt?: number;
+  llm?: number;
+  tts?: number;
+}
+
 const WAKE_IDLE: WakeMeter = { score: 0, threshold: 0, rms: 0 };
 
 export function useAgentSocket() {
@@ -22,6 +29,7 @@ export function useAgentSocket() {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [wake, setWake] = useState<WakeMeter>(WAKE_IDLE);
+  const [metrics, setMetrics] = useState<Metrics>({});
   const wsRef = useRef<WebSocket | null>(null);
   const wakeDecay = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -46,6 +54,9 @@ export function useAgentSocket() {
           setWake({ score: ev.score, threshold: ev.threshold, rms: ev.rms });
           clearTimeout(wakeDecay.current);
           wakeDecay.current = setTimeout(() => setWake(WAKE_IDLE), 600);
+        } else if (ev.type === 'timing') {
+          // STT is the first stage of a turn — reset so stale llm/tts clear.
+          setMetrics((m) => (ev.stage === 'stt' ? { stt: ev.ms } : { ...m, [ev.stage]: ev.ms }));
         } else if (ev.type === 'hello') {
           setState(ev.state);
           setTranscript(ev.transcript);
@@ -90,5 +101,5 @@ export function useAgentSocket() {
     wsRef.current?.send(JSON.stringify(ev));
   }, []);
 
-  return { state, transcript, connected, wake, send };
+  return { state, transcript, connected, wake, metrics, send };
 }

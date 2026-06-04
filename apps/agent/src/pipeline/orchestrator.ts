@@ -76,6 +76,7 @@ export class Orchestrator {
       void unlink(wavPath).catch(() => {});
     }
     log.info('stt', { ms: Date.now() - startedAt, text });
+    this.convo.emit?.({ type: 'timing', stage: 'stt', ms: Date.now() - startedAt });
 
     // Whisper hallucinates non-speech markers on silence/noise ("[Música]",
     // "(sonido de música)", "[BLANK_AUDIO]"…). Drop those so a false wake or a

@@ -37,7 +37,12 @@ export type ServerEvent =
    * wake word so the kiosk can show whether the mic hears audio (`rms`, raw
    * int16 RMS) and how close it is to firing (`score` vs `threshold`).
    */
-  | { type: 'wake'; score: number; threshold: number; rms: number };
+  | { type: 'wake'; score: number; threshold: number; rms: number }
+  /** Per-stage latency of a turn, for the kiosk's debug overlay. */
+  | { type: 'timing'; stage: TimingStage; ms: number };
+
+/** Pipeline stages whose latency the kiosk's debug overlay reports. */
+export type TimingStage = 'stt' | 'llm' | 'tts';
 
 /** Events the kiosk (or a dev tool) can send to the backend. */
 export type ClientEvent =

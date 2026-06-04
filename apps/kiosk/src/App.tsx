@@ -2,7 +2,14 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 
 import type { AgentState } from '@home-assistant/shared';
 import { chime, enableChimeOnInteraction } from './chime.js';
 import { Starfield } from './Starfield.js';
-import { useAgentSocket, type WakeMeter as WakeData } from './useAgentSocket.js';
+import {
+  useAgentSocket,
+  type Metrics,
+  type WakeMeter as WakeData,
+} from './useAgentSocket.js';
+
+/** Debug overlay (per-stage timings) is on when the URL has `?debug`. */
+const DEBUG = new URLSearchParams(location.search).has('debug');
 
 const STATUS: Record<AgentState, string> = {
   idle: 'EN ESPERA',
@@ -83,8 +90,50 @@ function WakeMeter({ wake }: { wake: WakeData }) {
   );
 }
 
+const fmtMs = (ms?: number) =>
+  ms == null ? '—' : ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${Math.round(ms)}ms`;
+
+/** Debug overlay: per-stage latency of the last turn (STT / LLM / TTS). */
+function DebugMetrics({ metrics }: { metrics: Metrics }) {
+  const ready = (metrics.stt ?? 0) + (metrics.llm ?? 0); // time until the answer is ready
+  const rows: Array<[string, number | undefined]> = [
+    ['STT', metrics.stt],
+    ['LLM', metrics.llm],
+    ['TTS', metrics.tts],
+    ['→ LISTO', metrics.stt != null && metrics.llm != null ? ready : undefined],
+  ];
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        right: 14,
+        bottom: 70,
+        zIndex: 20,
+        minWidth: 150,
+        padding: '8px 12px',
+        fontSize: 11,
+        letterSpacing: 1,
+        fontFamily: 'monospace',
+        color: '#0cf',
+        background: 'rgba(0,10,16,0.82)',
+        border: '1px solid rgba(0,255,255,0.3)',
+        borderRadius: 4,
+        boxShadow: '0 0 12px rgba(0,255,255,0.15)',
+      }}
+    >
+      <div style={{ opacity: 0.6, marginBottom: 4 }}>DEBUG · TIEMPOS</div>
+      {rows.map(([k, v]) => (
+        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+          <span style={{ opacity: 0.75 }}>{k}</span>
+          <span style={{ color: k === '→ LISTO' ? '#3f6' : '#0cf' }}>{fmtMs(v)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function App() {
-  const { state, transcript, connected, wake, send } = useAgentSocket();
+  const { state, transcript, connected, wake, metrics, send } = useAgentSocket();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const prevState = useRef<AgentState>('idle');
@@ -126,6 +175,7 @@ export function App() {
   return (
     <div className={`hal state-${state}`}>
       <Starfield />
+      {DEBUG && <DebugMetrics metrics={metrics} />}
       <div className="grid-floor" aria-hidden />
       <div className="scanlines" aria-hidden />
 

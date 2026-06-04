@@ -70,6 +70,7 @@ export class Conversation {
     let full = '';
     let flushed = 0; // chars of `full` already queued for speech
     let speaking = false;
+    let speakStartedAt = 0; // when the first chunk started being spoken
 
     // Ordered TTS queue: speak each sentence as soon as it's ready, in order.
     let speakChain: Promise<void> = Promise.resolve();
@@ -78,6 +79,7 @@ export class Conversation {
       if (!speak || !chunk.trim()) return;
       if (!speaking) {
         speaking = true;
+        speakStartedAt = Date.now();
         this.setState('speaking');
       }
       log.debug('speak chunk', { head: chunk.trim().slice(0, 50) });
@@ -114,7 +116,11 @@ export class Conversation {
     }
 
     log.info('answer', { ms: Date.now() - startedAt, text: full.slice(0, 200) });
+    this.emit?.({ type: 'timing', stage: 'llm', ms: Date.now() - startedAt });
     await speakChain; // wait for all queued speech to finish playing
+    if (speakStartedAt) {
+      this.emit?.({ type: 'timing', stage: 'tts', ms: Date.now() - speakStartedAt });
+    }
     this.setState('idle');
     return full;
   }
