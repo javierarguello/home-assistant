@@ -31,7 +31,13 @@ export type ServerEvent =
   | { type: 'state'; state: AgentState }
   | { type: 'transcript'; entry: TranscriptEntry }
   | { type: 'error'; message: string }
-  | { type: 'hello'; state: AgentState; transcript: TranscriptEntry[] };
+  | { type: 'hello'; state: AgentState; transcript: TranscriptEntry[] }
+  /**
+   * Live wake-word telemetry, emitted per audio frame while listening for the
+   * wake word so the kiosk can show whether the mic hears audio (`rms`, raw
+   * int16 RMS) and how close it is to firing (`score` vs `threshold`).
+   */
+  | { type: 'wake'; score: number; threshold: number; rms: number };
 
 /** Events the kiosk (or a dev tool) can send to the backend. */
 export type ClientEvent =

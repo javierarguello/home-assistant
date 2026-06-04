@@ -22,9 +22,16 @@ const log = createLogger('wake');
 
 export type UtteranceHandler = (wavPath: string) => Promise<void> | void;
 
+/** Live wake telemetry per audio frame: detection score + raw int16 mic RMS. */
+export type ScoreHandler = (score: number, rms: number) => void;
+
 export interface WakeSource {
   /** Runs until stopped; calls onUtterance with a WAV path per detected phrase. */
-  start(onUtterance: UtteranceHandler, onWake?: () => void): Promise<void>;
+  start(
+    onUtterance: UtteranceHandler,
+    onWake?: () => void,
+    onScore?: ScoreHandler,
+  ): Promise<void>;
   stop(): void;
 }
 
@@ -41,7 +48,7 @@ function createOpenWakeWordSource(): WakeSource {
   let stopped = false;
 
   return {
-    async start(onUtterance, onWake) {
+    async start(onUtterance, onWake, onScore) {
       proc = spawn(config.wakeWord.python, [config.wakeWord.script], {
         env: {
           ...process.env,
@@ -63,7 +70,14 @@ function createOpenWakeWordSource(): WakeSource {
 
       const rl = createInterface({ input: proc.stdout! });
       for await (const line of rl) {
-        let evt: { event?: string; model?: string; score?: number; wav?: string; message?: string };
+        let evt: {
+          event?: string;
+          model?: string;
+          score?: number;
+          rms?: number;
+          wav?: string;
+          message?: string;
+        };
         try {
           evt = JSON.parse(line);
         } catch {
@@ -74,7 +88,9 @@ function createOpenWakeWordSource(): WakeSource {
             log.info('wake-word ready (openWakeWord)', { model: evt.model });
             break;
           case 'score':
-            log.debug('score', { score: evt.score });
+            onScore?.(evt.score ?? 0, evt.rms ?? 0);
+            // Logged only for near-misses to keep the debug log readable.
+            if ((evt.score ?? 0) >= 0.1) log.debug('score', { score: evt.score });
             break;
           case 'wake':
             log.info('wake word detected', { score: evt.score });

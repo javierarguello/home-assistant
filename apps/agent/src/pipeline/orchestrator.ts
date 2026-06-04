@@ -52,6 +52,13 @@ export class Orchestrator {
     await this.source.start(
       (wavPath) => this.handleUtterance(wavPath),
       () => this.convo.setState('listening'),
+      (score, rms) =>
+        this.convo.emit?.({
+          type: 'wake',
+          score,
+          rms,
+          threshold: config.wakeWord.threshold,
+        }),
     );
   }
 
@@ -70,7 +77,11 @@ export class Orchestrator {
     }
     log.info('stt', { ms: Date.now() - startedAt, text });
 
-    if (!text.trim()) {
+    // Whisper hallucinates non-speech markers on silence/noise ("[Música]",
+    // "(sonido de música)", "[BLANK_AUDIO]"…). Drop those so a false wake or a
+    // silent capture doesn't trigger a bogus answer.
+    if (!text.trim() || isNoiseTranscript(text)) {
+      if (text.trim()) log.info('ignoring non-speech transcript', { text });
       this.convo.setState('idle');
       return;
     }
@@ -85,4 +96,38 @@ export class Orchestrator {
       this.convo.setState('idle');
     }
   }
+}
+
+/** Whisper's non-speech hallucinations (silence/noise) that we must not answer. */
+const NOISE_MARKERS = new Set([
+  'musica',
+  'music',
+  'blankaudio',
+  'silencio',
+  'silence',
+  'sonidodemusica',
+  'aplausos',
+  'applause',
+  'risas',
+  'laughter',
+  'subtitulos',
+  'graciasporver',
+]);
+
+/**
+ * True when a transcript is almost certainly a whisper hallucination on
+ * silence/noise rather than real speech: a fully bracketed/parenthesised tag
+ * (`[Música]`, `(música)`, `♪…♪`) or a bare non-speech marker.
+ */
+export function isNoiseTranscript(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return true;
+  // Whisper wraps non-speech in brackets/parens or music notes.
+  if (/^[[({♪*].*[\])}♪*]$/.test(trimmed)) return true;
+  const stripped = trimmed
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // drop accents (música -> musica)
+    .replace(/[^a-z]/g, ''); // keep letters only
+  return NOISE_MARKERS.has(stripped);
 }

@@ -91,9 +91,10 @@ def main():
                 frame = data[:, 0]
                 scores = model.predict(frame)
                 score = max(scores.values()) if scores else 0.0
-                if score >= 0.1:
-                    # Near-miss/debug visibility (shown at debug log level).
-                    emit({"event": "score", "score": round(float(score), 3)})
+                # Emit every frame: drives the kiosk's live level/score meter so
+                # the user can see the mic hears audio (rms) and how close the
+                # score is to firing. ~12.5 msgs/s — fine over a local socket.
+                emit({"event": "score", "score": round(float(score), 3), "rms": round(rms(frame), 1)})
                 if score < THRESHOLD:
                     continue
 
