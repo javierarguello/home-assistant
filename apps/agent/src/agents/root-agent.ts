@@ -30,5 +30,5 @@ export const rootAgent = new LlmAgent({
     'lookup, call the web_search tool before answering. For everything else,',
     'answer directly from your own knowledge.',
   ].join(' '),
-  tools: [webSearchTool],
+  tools: config.tools.webSearch ? [webSearchTool] : [],
 });

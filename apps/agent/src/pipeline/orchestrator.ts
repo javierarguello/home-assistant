@@ -70,7 +70,19 @@ export class Orchestrator {
     }
     log.info('stt', { ms: Date.now() - startedAt, text });
 
-    if (text.trim()) await this.convo.handle(text.trim());
-    else this.convo.setState('idle');
+    if (!text.trim()) {
+      this.convo.setState('idle');
+      return;
+    }
+    // A failed turn (e.g. an LLM 403/network error) must not kill the voice
+    // loop. Conversation.handle already emits the error and resets to idle
+    // before re-throwing; swallow it here so we keep listening for the next
+    // wake word.
+    try {
+      await this.convo.handle(text.trim());
+    } catch (error) {
+      log.error('turn failed; staying live', error);
+      this.convo.setState('idle');
+    }
   }
 }

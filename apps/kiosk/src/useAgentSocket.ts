@@ -33,7 +33,16 @@ export function useAgentSocket() {
           setState(ev.state);
           setTranscript(ev.transcript);
         } else if (ev.type === 'transcript') {
-          setTranscript((t) => [...t, ev.entry].slice(-50));
+          setTranscript((t) => {
+            // Update in place if the entry id already exists (streaming), else append.
+            const idx = t.findIndex((e) => e.id === ev.entry.id);
+            if (idx >= 0) {
+              const copy = t.slice();
+              copy[idx] = ev.entry;
+              return copy;
+            }
+            return [...t, ev.entry].slice(-50);
+          });
         } else if (ev.type === 'error') {
           setTranscript((t) =>
             [

@@ -139,6 +139,11 @@ export const config = {
   },
 
   tools: {
+    /**
+     * Expose the web_search tool to the agent. Disable for small local models
+     * (e.g. llama3.2:1b) that over-call tools or emit malformed arguments.
+     */
+    webSearch: process.env.ENABLE_WEB_SEARCH !== 'false',
     /** Tavily gives good web-search results; falls back to DuckDuckGo if empty. */
     tavilyApiKey: process.env.TAVILY_API_KEY ?? '',
   },

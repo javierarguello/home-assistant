@@ -2,9 +2,12 @@
  * Thin wrapper around ADK's runner that keeps a single conversation session
  * and turns the event stream into simple {@link AskUpdate}s.
  */
-import { InMemoryRunner, isFinalResponse } from '@google/adk';
+import { InMemoryRunner, StreamingMode, isFinalResponse } from '@google/adk';
 import type { Event } from '@google/adk';
 import { rootAgent } from './agents/root-agent.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('agent');
 
 const APP_NAME = 'home-assistant';
 
@@ -35,6 +38,7 @@ export class AgentRunner {
       userId: this.userId,
       sessionId: this.sessionId!,
       newMessage: { role: 'user', parts: [{ text }] },
+      runConfig: { streamingMode: StreamingMode.SSE },
     })) {
       // ADK reports model/transport failures as error events rather than throws.
       if (event.errorCode || event.errorMessage) {
@@ -45,8 +49,13 @@ export class AgentRunner {
       }
       const text = textOf(event);
       if (!text) continue;
-      if (isFinalResponse(event)) yield { type: 'final', text };
-      else if (event.partial) yield { type: 'partial', text };
+      if (isFinalResponse(event)) {
+        log.debug('final', { len: text.length, head: text.slice(0, 50) });
+        yield { type: 'final', text };
+      } else if (event.partial) {
+        log.debug('partial', { len: text.length, text: text.slice(0, 50) });
+        yield { type: 'partial', text };
+      }
     }
   }
 }

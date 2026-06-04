@@ -12,27 +12,6 @@ const STATUS: Record<AgentState, string> = {
   error: 'FALLO DE SISTEMA',
 };
 
-/** Reveals `text` letter-by-letter while `active`; shows it whole otherwise. */
-function useTypewriter(text: string, active: boolean): string {
-  const [shown, setShown] = useState(text);
-  useEffect(() => {
-    if (!active || !text) {
-      setShown(text);
-      return;
-    }
-    setShown('');
-    const step = Math.max(20, Math.min(60, 2400 / Math.max(text.length, 10)));
-    let i = 0;
-    const id = setInterval(() => {
-      i += 1;
-      setShown(text.slice(0, i));
-      if (i >= text.length) clearInterval(id);
-    }, step);
-    return () => clearInterval(id);
-  }, [text, active]);
-  return shown;
-}
-
 export function App() {
   const { state, transcript, connected, send } = useAgentSocket();
   const [draft, setDraft] = useState('');
@@ -62,7 +41,6 @@ export function App() {
 
   const isSpeaking = state === 'speaking';
   const answer = lastAssistant?.text ?? '';
-  const typed = useTypewriter(answer, isSpeaking);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -120,7 +98,7 @@ export function App() {
               ▸ HAL · TRANSMITIENDO <span className="live" />
             </div>
             <div className="central-text">
-              {typed}
+              {answer}
               <span className="caret" />
             </div>
           </div>
