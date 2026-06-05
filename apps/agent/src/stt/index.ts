@@ -6,6 +6,7 @@ import { config } from '../config/env.js';
 import { transcribeWhisperLocal } from './whisper-local.js';
 import { transcribeWhisperServer } from './whisper-server.js';
 import { transcribeCloud } from './cloud.js';
+import { transcribeGemini } from './gemini.js';
 
 export interface SttEngine {
   /** Transcribes a 16 kHz mono WAV file to text. */
@@ -20,6 +21,8 @@ export function createStt(): SttEngine {
       return { transcribe: transcribeWhisperServer };
     case 'openai':
       return { transcribe: transcribeCloud };
+    case 'gemini':
+      return { transcribe: transcribeGemini };
     case 'mock':
       return { transcribe: async () => '(mock transcript)' };
     default:

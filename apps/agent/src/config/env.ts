@@ -57,8 +57,8 @@ export function readModelConfig(agentKey: string): ModelConfig {
   };
 }
 
-export type SttProvider = 'whisper-local' | 'whisper-server' | 'openai' | 'mock';
-export type TtsProvider = 'piper' | 'openai' | 'mock';
+export type SttProvider = 'whisper-local' | 'whisper-server' | 'openai' | 'gemini' | 'mock';
+export type TtsProvider = 'piper' | 'openai' | 'gemini' | 'mock';
 export type RunMode = 'chat' | 'voice';
 
 export const config = {
@@ -116,6 +116,11 @@ export const config = {
     baseURL: process.env.STT_BASE_URL ?? 'https://api.openai.com/v1',
     apiKey: process.env.STT_API_KEY ?? '',
     model: process.env.STT_MODEL ?? 'whisper-1',
+    /** Gemini STT (audio input). Key falls back to the LLM key. */
+    geminiBaseUrl:
+      process.env.STT_GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta',
+    geminiApiKey: process.env.STT_GEMINI_API_KEY ?? process.env.LLM_API_KEY ?? '',
+    geminiModel: process.env.STT_GEMINI_MODEL ?? 'gemini-2.5-flash',
   },
 
   tts: {
@@ -131,6 +136,12 @@ export const config = {
     apiKey: process.env.TTS_API_KEY ?? '',
     model: process.env.TTS_MODEL ?? 'tts-1',
     voice: process.env.TTS_VOICE ?? 'alloy',
+    /** Gemini TTS (native audio out). Key falls back to the LLM key. */
+    geminiBaseUrl:
+      process.env.TTS_GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta',
+    geminiApiKey: process.env.TTS_GEMINI_API_KEY ?? process.env.LLM_API_KEY ?? '',
+    geminiModel: process.env.TTS_GEMINI_MODEL ?? 'gemini-2.5-flash-preview-tts',
+    geminiVoice: process.env.TTS_GEMINI_VOICE ?? 'Kore',
   },
 
   audio: {

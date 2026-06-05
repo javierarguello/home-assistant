@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { config } from '../config/env.js';
 import { synthesizePiper } from './piper-local.js';
 import { synthesizeCloud } from './cloud.js';
+import { synthesizeGemini } from './gemini.js';
 
 export interface TtsEngine {
   synthesize(text: string): Promise<string | null>;
@@ -24,6 +25,8 @@ export function createTts(): TtsEngine {
       return { synthesize: (text) => synthesizePiper(text, tmpWavPath()) };
     case 'openai':
       return { synthesize: (text) => synthesizeCloud(text, tmpWavPath()) };
+    case 'gemini':
+      return { synthesize: (text) => synthesizeGemini(text, tmpWavPath()) };
     case 'mock':
       return {
         synthesize: async (text) => {
