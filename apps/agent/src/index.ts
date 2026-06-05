@@ -9,6 +9,7 @@ import { Conversation } from './conversation.js';
 import { createLogger, logFilePath } from './logger.js';
 import { startWsServer } from './server/ws.js';
 import { startConsolidationSchedule } from './memory/consolidate.js';
+import { taskManager } from './tasks/instance.js';
 
 const log = createLogger('main');
 
@@ -43,6 +44,17 @@ convo.emit = ws?.broadcast;
 // short-lived chat REPL: the interval is unref'd).
 startConsolidationSchedule();
 
+// Background task agents: emit progress to the kiosk and speak a notice when one
+// finishes. init() recovers any workers still alive from a previous run.
+const tasks = config.tasks.enabled ? taskManager() : undefined;
+if (tasks) {
+  tasks.configure({
+    onUpdate: (task) => ws?.broadcast({ type: 'task', task }),
+    announce: (text) => void convo.announce(text),
+  });
+  await tasks.init();
+}
+
 if (mode === 'voice') {
   const { Orchestrator } = await import('./pipeline/orchestrator.js');
   const orchestrator = new Orchestrator(convo);
@@ -50,6 +62,7 @@ if (mode === 'voice') {
   const shutdown = () => {
     log.info('shutting down');
     orchestrator.stop();
+    void tasks?.stop();
     ws?.close();
     process.exit(0);
   };
@@ -60,6 +73,7 @@ if (mode === 'voice') {
   // Interactive terminal: run the text REPL.
   const { runChat } = await import('./cli/chat.js');
   await runChat(convo);
+  await tasks?.stop();
   ws?.close();
   process.exit(0);
 } else {

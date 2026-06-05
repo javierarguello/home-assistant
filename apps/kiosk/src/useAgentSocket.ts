@@ -3,6 +3,7 @@ import type {
   AgentState,
   ClientEvent,
   ServerEvent,
+  TaskInfo,
   TranscriptEntry,
 } from '@home-assistant/shared';
 
@@ -31,8 +32,10 @@ export function useAgentSocket() {
   const [wake, setWake] = useState<WakeMeter>(WAKE_IDLE);
   const [metrics, setMetrics] = useState<Metrics>({});
   const [activity, setActivity] = useState('');
+  const [tasks, setTasks] = useState<TaskInfo[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const wakeDecay = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const taskTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
     let closed = false;
@@ -65,6 +68,26 @@ export function useAgentSocket() {
         } else if (ev.type === 'hello') {
           setState(ev.state);
           setTranscript(ev.transcript);
+          setTasks(ev.tasks ?? []);
+        } else if (ev.type === 'task') {
+          const task = ev.task;
+          setTasks((ts) => {
+            const idx = ts.findIndex((t) => t.id === task.id);
+            if (idx >= 0) {
+              const copy = ts.slice();
+              copy[idx] = task;
+              return copy;
+            }
+            return [...ts, task];
+          });
+          // Keep a finished task on screen briefly (✓), then drop it.
+          if (task.status === 'completed' || task.status === 'failed') {
+            clearTimeout(taskTimers.current.get(task.id));
+            taskTimers.current.set(
+              task.id,
+              setTimeout(() => setTasks((ts) => ts.filter((t) => t.id !== task.id)), 8000),
+            );
+          }
         } else if (ev.type === 'transcript') {
           setTranscript((t) => {
             // Update in place if the entry id already exists (streaming), else append.
@@ -93,10 +116,12 @@ export function useAgentSocket() {
     };
 
     connect();
+    const timers = taskTimers.current;
     return () => {
       closed = true;
       clearTimeout(retry);
       clearTimeout(wakeDecay.current);
+      for (const t of timers.values()) clearTimeout(t);
       wsRef.current?.close();
     };
   }, []);
@@ -106,5 +131,5 @@ export function useAgentSocket() {
     wsRef.current?.send(JSON.stringify(ev));
   }, []);
 
-  return { state, transcript, connected, wake, metrics, activity, send };
+  return { state, transcript, connected, wake, metrics, activity, tasks, send };
 }

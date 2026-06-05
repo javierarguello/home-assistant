@@ -26,12 +26,31 @@ export interface TranscriptEntry {
   ts: number;
 }
 
+/** Status of a background task agent. */
+export type TaskStatus = 'starting' | 'running' | 'completed' | 'failed';
+
+/** A background task agent, shown in the kiosk's "AGENTES" panel. */
+export interface TaskInfo {
+  id: string;
+  kind: string;
+  title: string;
+  status: TaskStatus;
+  /** Latest progress snippet, if any. */
+  step?: string;
+  /** True when the task escalated to the Pro/code-analysis model (shows a think icon). */
+  analysis: boolean;
+  startedAt: number;
+  finishedAt?: number;
+}
+
 /** Events the backend pushes to the kiosk. */
 export type ServerEvent =
   | { type: 'state'; state: AgentState }
   | { type: 'transcript'; entry: TranscriptEntry }
   | { type: 'error'; message: string }
-  | { type: 'hello'; state: AgentState; transcript: TranscriptEntry[] }
+  | { type: 'hello'; state: AgentState; transcript: TranscriptEntry[]; tasks: TaskInfo[] }
+  /** A background task started, progressed, or finished. */
+  | { type: 'task'; task: TaskInfo }
   /**
    * Live wake-word telemetry, emitted per audio frame while listening for the
    * wake word so the kiosk can show whether the mic hears audio (`rms`, raw

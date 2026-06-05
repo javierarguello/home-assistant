@@ -3,8 +3,10 @@ import { config } from '../config/env.js';
 import { resolveModel } from '../llm/resolve-model.js';
 import { webSearchTool } from '../tools/web-search.js';
 import { githubTools } from '../tools/github.js';
+import { taskTools } from '../tools/tasks.js';
 import { rememberTool, recallTool } from '../tools/memory.js';
 import { allFacts } from '../memory/store.js';
+import { recentSummaries } from '../tasks/bank.js';
 
 const PERSONA = [
   'You are “Family Assistant,” the primary voice and control interface for the home. You help manage',
@@ -43,19 +45,33 @@ const OPERATIONAL = [
       ' do not remember. Memory is kept small on purpose. Use what you already remember (listed below)' +
       ' naturally, without mentioning that you stored it.'
     : '',
+  config.tasks.enabled
+    ? 'For heavy, multi-step jobs (e.g. investigating a GitHub repo), delegate to a background agent with' +
+      ' the start_task tool instead of doing it inline, then tell the user you are on it. Use check_tasks' +
+      ' to report what is running or what a finished task found.'
+    : '',
 ]
   .filter(Boolean)
   .join(' ');
 
 const BASE_INSTRUCTION = `${PERSONA}\n\n${OPERATIONAL}`;
 
-/** Builds the system prompt fresh each turn, injecting current memories. */
+/** Builds the system prompt fresh each turn, injecting current memories + recent background work. */
 async function instruction(): Promise<string> {
-  if (!config.memory.enabled) return BASE_INSTRUCTION;
-  const facts = (await allFacts()).slice(-config.memory.maxInject);
-  if (!facts.length) return BASE_INSTRUCTION;
-  const block = facts.map((m) => `- ${m.text}`).join('\n');
-  return `${BASE_INSTRUCTION}\n\nWhat you remember about the user:\n${block}`;
+  let prompt = BASE_INSTRUCTION;
+  if (config.memory.enabled) {
+    const facts = (await allFacts()).slice(-config.memory.maxInject);
+    if (facts.length) prompt += `\n\nWhat you remember about the user:\n${facts.map((m) => `- ${m.text}`).join('\n')}`;
+  }
+  if (config.tasks.enabled) {
+    const recent = await recentSummaries(5);
+    if (recent.length) {
+      prompt += `\n\nRecent background work you've done (for follow-up questions):\n${recent
+        .map((s) => `- [${s.kind}] ${s.text}`)
+        .join('\n')}`;
+    }
+  }
+  return prompt;
 }
 
 /**
@@ -81,6 +97,7 @@ export const rootAgent = new LlmAgent({
   tools: [
     ...(config.tools.webSearch ? [webSearchTool] : []),
     ...(config.tools.github ? githubTools : []),
+    ...(config.tasks.enabled ? taskTools : []),
     ...(config.memory.enabled ? [rememberTool, recallTool] : []),
   ],
 });

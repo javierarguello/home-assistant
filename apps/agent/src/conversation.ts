@@ -93,6 +93,12 @@ export class Conversation {
     Object.assign(this, init);
   }
 
+  /** True while a user turn is being handled (so announcements wait their turn). */
+  private busy = false;
+  /** Pending background-task notices to speak once the assistant is idle. */
+  private readonly announceQueue: string[] = [];
+  private flushing = false;
+
   async init(): Promise<void> {
     await this.runner.init();
   }
@@ -101,9 +107,47 @@ export class Conversation {
     this.emit?.({ type: 'state', state });
   }
 
+  /**
+   * Speaks a short background-task notice (e.g. "terminé la tarea de GitHub").
+   * Queues it if a turn is in progress so it never cuts off a live answer; in
+   * chat/headless mode it just prints.
+   */
+  async announce(text: string): Promise<void> {
+    this.announceQueue.push(text);
+    await this.flushAnnouncements();
+  }
+
+  private async flushAnnouncements(): Promise<void> {
+    if (this.busy || this.flushing) return; // flushed at the end of the current turn
+    this.flushing = true;
+    try {
+      while (this.announceQueue.length) {
+        const text = this.announceQueue.shift()!;
+        this.emitTranscript('assistant', text);
+        this.emit?.({ type: 'activity', label: text });
+        const spoken = cleanForSpeech(text);
+        if (this.synth && this.play && spoken) {
+          this.setState('speaking');
+          try {
+            const wav = await this.synth(spoken);
+            if (wav) await this.play(wav);
+          } catch (e) {
+            log.error('announce tts failed', e);
+          }
+          this.setState('idle');
+        } else {
+          this.onText?.({ text, final: true });
+        }
+      }
+    } finally {
+      this.flushing = false;
+    }
+  }
+
   /** Runs a turn: stream tokens -> speak sentence-by-sentence -> idle. */
   async handle(text: string): Promise<string> {
     log.info('turn', { user: text });
+    this.busy = true;
     this.emitTranscript('user', text);
     this.setState('thinking');
 
@@ -173,6 +217,8 @@ export class Conversation {
       this.emit?.({ type: 'error', message: (error as Error).message });
       await speakChain.catch(() => {});
       this.setState('idle');
+      this.busy = false;
+      void this.flushAnnouncements();
       throw error;
     }
 
@@ -184,6 +230,9 @@ export class Conversation {
       await this.onSpeechEnd?.();
     }
     this.setState('idle');
+    this.busy = false;
+    // Speak any task notices that arrived mid-turn, now that we're idle.
+    void this.flushAnnouncements();
     return full;
   }
 

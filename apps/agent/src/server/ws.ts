@@ -8,6 +8,7 @@ import type {
   AgentState,
   ClientEvent,
   ServerEvent,
+  TaskInfo,
   TranscriptEntry,
 } from '@home-assistant/shared';
 import { createLogger } from '../logger.js';
@@ -31,12 +32,24 @@ export function startWsServer(port: number, handlers: WsHandlers = {}): WsServer
 
   let state: AgentState = 'idle';
   const transcript: TranscriptEntry[] = [];
+  // Latest snapshot per task, so a freshly-connected kiosk catches up via `hello`.
+  const tasks = new Map<string, TaskInfo>();
 
   const broadcast: Emit = (event) => {
     if (event.type === 'state') state = event.state;
     if (event.type === 'transcript') {
       transcript.push(event.entry);
       if (transcript.length > 100) transcript.shift();
+    }
+    if (event.type === 'task') {
+      // Drop finished tasks from the catch-up snapshot after a grace window;
+      // keep running ones. (Live clients still get every event.)
+      if (event.task.status === 'completed' || event.task.status === 'failed') {
+        tasks.set(event.task.id, event.task);
+        setTimeout(() => tasks.delete(event.task.id), 60_000).unref?.();
+      } else {
+        tasks.set(event.task.id, event.task);
+      }
     }
     const data = JSON.stringify(event);
     for (const client of wss.clients) {
@@ -46,7 +59,7 @@ export function startWsServer(port: number, handlers: WsHandlers = {}): WsServer
 
   wss.on('connection', (ws) => {
     log.info('kiosk connected', { clients: wss.clients.size });
-    const hello: ServerEvent = { type: 'hello', state, transcript: [...transcript] };
+    const hello: ServerEvent = { type: 'hello', state, transcript: [...transcript], tasks: [...tasks.values()] };
     ws.send(JSON.stringify(hello));
     ws.on('close', () => log.info('kiosk disconnected', { clients: wss.clients.size }));
     ws.on('message', (raw) => {

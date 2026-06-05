@@ -57,6 +57,34 @@ export function readModelConfig(agentKey: string): ModelConfig {
   };
 }
 
+/**
+ * Model for a background worker. Always the cheap default (`WORKER_*`); when a
+ * task needs to analyze/reason over code, it escalates to `WORKER_ANALYSIS_*`.
+ * Both layer down to `WORKER_*` then the global `LLM_*` defaults.
+ */
+export function readWorkerModel(needsCodeAnalysis: boolean): ModelConfig {
+  const prefixes = needsCodeAnalysis ? ['WORKER_ANALYSIS', 'WORKER'] : ['WORKER'];
+  const get = (suffix: string) => {
+    for (const p of prefixes) {
+      const v = process.env[`${p}_${suffix}`];
+      if (v != null && v !== '') return v;
+    }
+    return undefined;
+  };
+  const auth = get('AUTH') ?? process.env.LLM_AUTH;
+  const think = get('THINK') ?? process.env.LLM_THINK;
+  return {
+    model: get('MODEL') ?? process.env.LLM_MODEL ?? 'llama3.2:3b',
+    baseURL: get('BASE_URL') ?? process.env.LLM_BASE_URL ?? 'http://localhost:11434/v1',
+    apiKey: get('API_KEY') ?? process.env.LLM_API_KEY ?? 'ollama',
+    temperature: num(get('TEMPERATURE') ?? process.env.LLM_TEMPERATURE),
+    maxTokens: num(get('MAX_TOKENS') ?? process.env.LLM_MAX_TOKENS),
+    auth: auth === 'gcloud' ? 'gcloud' : undefined,
+    gcloudAccount: get('GCLOUD_ACCOUNT') ?? process.env.LLM_GCLOUD_ACCOUNT,
+    think: think === 'true' ? true : think === 'false' ? false : undefined,
+  };
+}
+
 export type SttProvider = 'whisper-local' | 'whisper-server' | 'openai' | 'gemini' | 'mock';
 export type TtsProvider = 'piper' | 'openai' | 'gemini' | 'mock';
 export type RunMode = 'chat' | 'voice';
@@ -199,5 +227,21 @@ export const config = {
     consolidateHours: num(process.env.MEMORY_CONSOLIDATE_HOURS) ?? 6,
     /** Consolidate when this many facts have piled up unsummarized. */
     consolidateThreshold: num(process.env.MEMORY_CONSOLIDATE_THRESHOLD) ?? 15,
+  },
+
+  tasks: {
+    /** Background task agents (A2A workers). Off unless explicitly enabled. */
+    enabled: process.env.TASKS_ENABLED === 'true',
+    /** Kill a worker process after this long with no use (mirrors session idle). */
+    idleResetMs: (num(process.env.TASK_IDLE_MINUTES) ?? 30) * 60_000,
+    /** Max worker processes alive at once (caps RAM on the Pi). */
+    maxConcurrent: num(process.env.MAX_CONCURRENT_TASKS) ?? 3,
+    /** Speak a short notice when a task finishes (voice mode). */
+    announce: process.env.TASK_ANNOUNCE !== 'false',
+    /** Ring buffer of past-task summaries (JSON, gitignored like memory). */
+    bankFile: process.env.TASK_BANK_FILE ?? join(repoRoot, 'data', 'task-bank.json'),
+    bankMax: num(process.env.TASK_BANK_MAX) ?? 10,
+    /** Host the A2A worker servers bind to (localhost only for now). */
+    host: process.env.TASK_WORKER_HOST ?? '127.0.0.1',
   },
 } as const;

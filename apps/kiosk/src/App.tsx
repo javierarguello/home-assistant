@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
-import type { AgentState } from '@home-assistant/shared';
+import type { AgentState, TaskInfo } from '@home-assistant/shared';
 import { chime, enableChimeOnInteraction } from './chime.js';
 import { Starfield } from './Starfield.js';
 import {
@@ -132,8 +132,66 @@ function DebugMetrics({ metrics }: { metrics: Metrics }) {
   );
 }
 
+const TASK_ICON: Record<TaskInfo['status'], string> = {
+  starting: '◌',
+  running: '▸',
+  completed: '✓',
+  failed: '✕',
+};
+const TASK_COLOR: Record<TaskInfo['status'], string> = {
+  starting: '#0cf',
+  running: '#0cf',
+  completed: '#3f6',
+  failed: '#f55',
+};
+
+/** Live panel of background task agents (running + just-finished). */
+function TasksPanel({ tasks }: { tasks: TaskInfo[] }) {
+  if (!tasks.length) return null;
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        left: 18,
+        bottom: 84,
+        zIndex: 30,
+        maxWidth: 340,
+        fontFamily: 'monospace',
+        fontSize: 12,
+        letterSpacing: 0.5,
+        color: '#0cf',
+        background: 'rgba(0,10,16,0.72)',
+        border: '1px solid rgba(0,255,255,0.25)',
+        borderRadius: 4,
+        padding: '8px 10px',
+        boxShadow: '0 0 12px rgba(0,255,255,0.15)',
+      }}
+    >
+      <div style={{ opacity: 0.6, marginBottom: 6 }}>▸ AGENTES</div>
+      {tasks.map((t) => (
+        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '3px 0' }}>
+          <span style={{ color: TASK_COLOR[t.status], width: 12 }}>{TASK_ICON[t.status]}</span>
+          {t.analysis && <span title="análisis de código (modelo Pro)">🧠</span>}
+          <span style={{ opacity: 0.6, textTransform: 'uppercase' }}>{t.kind}</span>
+          <span
+            style={{
+              flex: 1,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              opacity: t.status === 'completed' || t.status === 'failed' ? 0.7 : 1,
+            }}
+          >
+            {t.step || t.title}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function App() {
-  const { state, transcript, connected, wake, metrics, activity, send } = useAgentSocket();
+  const { state, transcript, connected, wake, metrics, activity, tasks, send } = useAgentSocket();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const prevState = useRef<AgentState>('idle');
@@ -176,6 +234,7 @@ export function App() {
     <div className={`hal state-${state}`}>
       <Starfield />
       {DEBUG && <DebugMetrics metrics={metrics} />}
+      <TasksPanel tasks={tasks} />
       <div className="grid-floor" aria-hidden />
       <div className="scanlines" aria-hidden />
 
