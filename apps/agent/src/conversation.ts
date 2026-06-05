@@ -30,8 +30,12 @@ function activityLabel(tool: string): string {
 /**
  * Longest speakable prefix of `pending`: up to the last sentence terminator, or
  * (if it's getting long with none) a clause break; the whole thing when `final`.
+ *
+ * In `early` mode (the very first chunk of an answer) it also breaks at a clause
+ * separator and on a much shorter length, so speech — and its synthesis — starts
+ * as soon as possible; later chunks break on full sentences for natural prosody.
  */
-function speakableChunk(pending: string, final: boolean): string {
+function speakableChunk(pending: string, final: boolean, early = false): string {
   if (final) return pending;
   let lastEnd = -1;
   for (let i = 0; i < pending.length; i++) {
@@ -42,9 +46,20 @@ function speakableChunk(pending: string, final: boolean): string {
     }
   }
   if (lastEnd > 0) return pending.slice(0, lastEnd);
-  if (pending.length > 140) {
-    const sp = pending.lastIndexOf(' ', 140);
-    if (sp > 40) return pending.slice(0, sp + 1);
+  // First chunk: get something speakable out fast — break at the first clause
+  // separator (",", ";", ":") past ~20 chars.
+  if (early) {
+    for (let i = 20; i < pending.length; i++) {
+      const c = pending[i]!;
+      if ((c === ',' || c === ';' || c === ':') && /\s/.test(pending[i + 1] ?? ' ')) {
+        return pending.slice(0, i + 1);
+      }
+    }
+  }
+  const limit = early ? 60 : 140;
+  if (pending.length > limit) {
+    const sp = pending.lastIndexOf(' ', limit);
+    if (sp > (early ? 20 : 40)) return pending.slice(0, sp + 1);
   }
   return '';
 }
@@ -125,7 +140,8 @@ export class Conversation {
         .catch((e) => log.error('tts play failed', e));
     };
     const flush = (final: boolean) => {
-      const chunk = speakableChunk(full.slice(flushed), final);
+      // `!speaking` is true only until the first chunk is queued -> early mode.
+      const chunk = speakableChunk(full.slice(flushed), final, !speaking);
       if (chunk) {
         enqueueSpeech(chunk);
         flushed += chunk.length;
