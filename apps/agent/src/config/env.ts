@@ -162,6 +162,15 @@ export const config = {
     /** Web-search backend, in order of preference: Brave > Tavily > DuckDuckGo (keyless). */
     braveApiKey: process.env.BRAVE_API_KEY ?? '',
     tavilyApiKey: process.env.TAVILY_API_KEY ?? '',
+    /**
+     * GitHub tools (commits, compare refs, PRs, deployments). Off by default —
+     * enable with ENABLE_GITHUB=true once a token is set. Needs a Personal
+     * Access Token with `repo` scope for private repos.
+     */
+    github: process.env.ENABLE_GITHUB === 'true',
+    githubToken: process.env.GITHUB_TOKEN ?? '',
+    /** Fallback "owner/repo" so you don't have to name the repo every time. */
+    githubDefaultRepo: process.env.GITHUB_DEFAULT_REPO ?? '',
   },
 
   memory: {

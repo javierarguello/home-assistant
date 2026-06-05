@@ -2,6 +2,7 @@ import { LlmAgent } from '@google/adk';
 import { config } from '../config/env.js';
 import { resolveModel } from '../llm/resolve-model.js';
 import { webSearchTool } from '../tools/web-search.js';
+import { githubTools } from '../tools/github.js';
 import { rememberTool, recallTool } from '../tools/memory.js';
 import { allFacts } from '../memory/store.js';
 
@@ -76,6 +77,7 @@ export const rootAgent = new LlmAgent({
   instruction,
   tools: [
     ...(config.tools.webSearch ? [webSearchTool] : []),
+    ...(config.tools.github ? githubTools : []),
     ...(config.memory.enabled ? [rememberTool, recallTool] : []),
   ],
 });
