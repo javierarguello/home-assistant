@@ -64,7 +64,7 @@ Everything that differs between machines lives in `.env` (see `.env.example`):
 | LLM (per agent) | `LLM_*`, `ROOT_*`, `WEB_SEARCH_*` | Ollama `http://localhost:11434/v1` | Gemini / Vertex (gcloud) / OpenAI / any OpenAI-compatible |
 | Speech-to-text | `STT_PROVIDER` | `whisper-local` (whisper.cpp) | `openai` |
 | Text-to-speech | `TTS_PROVIDER` | `piper` | `openai` |
-| Wake word | `PICOVOICE_ACCESS_KEY`, `WAKE_WORD` | Porcupine (offline) | — |
+| Wake word | `WAKE_WORD`, `WAKE_WORD_THRESHOLD` | openWakeWord (local, no key) — see [docs/wake-word.md](docs/wake-word.md) | Porcupine |
 
 Moving to the Pi = clone, `npm install`, edit URLs/keys in `.env`. No code changes.
 

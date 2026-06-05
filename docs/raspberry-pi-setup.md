@@ -74,6 +74,10 @@ vendor/wakeword-venv/bin/python -c "import openwakeword.utils as u; u.download_m
 #       (models: hey_jarvis, alexa, hey_mycroft, hey_rhasspy… or a custom .onnx)
 ```
 
+Point `WAKE_WORD` at a built-in name (`hey_jarvis`, `alexa`, `hey_mycroft`,
+`hey_rhasspy`) or an absolute path to a custom `.onnx`. To switch wake words or
+train your own (incl. Spanish), see **[wake-word.md](wake-word.md)**.
+
 > Porcupine is still available as an alternative (`WAKE_WORD_ENGINE=porcupine`,
 > needs `PICOVOICE_ACCESS_KEY` + periodic internet). openWakeWord is the default
 > because it's 100% local with no key.
