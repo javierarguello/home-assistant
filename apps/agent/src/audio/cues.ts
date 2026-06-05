@@ -25,10 +25,15 @@ interface Segment {
   ms: number;
 }
 
+// freq 0 = a short silence (used as a gap between blips).
 const CUES: Record<Cue, Segment[]> = {
-  wake: [{ freq: 660, ms: 90 }, { freq: 990, ms: 120 }], // rising — "listening"
-  thinking: [{ freq: 520, ms: 130 }], // soft single — "got it"
-  done: [{ freq: 780, ms: 90 }, { freq: 520, ms: 140 }], // falling — "finished"
+  wake: [{ freq: 660, ms: 90 }, { freq: 990, ms: 130 }], // rising — "listening"
+  thinking: [
+    { freq: 784, ms: 80 },
+    { freq: 0, ms: 50 },
+    { freq: 784, ms: 80 },
+  ], // double blip — "got it, working"
+  done: [{ freq: 780, ms: 90 }, { freq: 520, ms: 150 }], // falling — "finished"
 };
 
 /** Renders a sequence of tones to 16-bit PCM, with short fades to avoid clicks. */
@@ -40,7 +45,7 @@ function renderTone(segments: Segment[]): Int16Array {
     const n = counts[idx]!;
     const fade = Math.min(Math.floor(n / 4), Math.round(0.005 * RATE)); // 5 ms
     for (let k = 0; k < n; k++) {
-      let amp = 0.28;
+      let amp = 0.36;
       if (k < fade) amp *= k / fade;
       else if (k > n - fade) amp *= (n - k) / fade;
       out[i++] = Math.round(Math.sin((2 * Math.PI * s.freq * k) / RATE) * amp * 32767);
