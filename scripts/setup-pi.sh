@@ -19,7 +19,9 @@ WHISPER_MODEL_NAME="${WHISPER_MODEL_NAME:-base}"          # tiny | base | small
 WHISPER_MODEL="$REPO_ROOT/models/ggml-${WHISPER_MODEL_NAME}.bin"
 PIPER_VENV="$REPO_ROOT/vendor/piper-venv"
 PIPER_BIN="$PIPER_VENV/bin/piper"
-PIPER_VOICE_NAME="${PIPER_VOICE_NAME:-es_AR-daniela-high}"
+# Default to a *medium* voice: on the Pi 5 CPU the "high" voices synthesize at
+# ~3x real-time (a 4 s reply takes ~12 s); medium runs near real-time (RTF ~1.1).
+PIPER_VOICE_NAME="${PIPER_VOICE_NAME:-es_MX-ald-medium}"
 PIPER_VOICE="$REPO_ROOT/voices/${PIPER_VOICE_NAME}.onnx"
 PIPER_VOICE_EN_NAME="${PIPER_VOICE_EN_NAME:-en_US-amy-medium}"
 PIPER_VOICE_EN="$REPO_ROOT/voices/${PIPER_VOICE_EN_NAME}.onnx"
