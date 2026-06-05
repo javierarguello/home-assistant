@@ -35,8 +35,14 @@ CHUNK = 1280  # 80 ms @ 16 kHz — openWakeWord's expected chunk size
 MODEL = os.environ.get("WAKEWORD_MODEL", "hey_jarvis")
 THRESHOLD = float(os.environ.get("WAKEWORD_THRESHOLD", "0.5"))
 MAX_SECONDS = float(os.environ.get("WAKEWORD_MAX_SECONDS", "8"))
-SILENCE_SECONDS = float(os.environ.get("WAKEWORD_SILENCE_SECONDS", "1.0"))
+SILENCE_SECONDS = float(os.environ.get("WAKEWORD_SILENCE_SECONDS", "1.2"))
 SILENCE_RMS = float(os.environ.get("WAKEWORD_SILENCE_RMS", "500"))
+# How long to wait for the command to actually begin after the wake word (the
+# user typically pauses between "hey jarvis" and the request). Leading silence
+# during this window does NOT end the capture.
+START_SECONDS = float(os.environ.get("WAKEWORD_START_SECONDS", "4.0"))
+# Frames of wake-word tail to drop so "…jarvis" doesn't count as the command.
+SKIP_FRAMES = int(os.environ.get("WAKEWORD_SKIP_FRAMES", "3"))
 INPUT_DEVICE = os.environ.get("WAKEWORD_INPUT_DEVICE") or None
 
 
@@ -79,6 +85,7 @@ def main():
         return 1
 
     silence_hang = max(1, int(SILENCE_SECONDS * SAMPLE_RATE / CHUNK))
+    start_hang = max(1, int(START_SECONDS * SAMPLE_RATE / CHUNK))
     max_frames = int(MAX_SECONDS * SAMPLE_RATE / CHUNK)
 
     try:
@@ -101,20 +108,43 @@ def main():
                 emit({"event": "wake", "score": round(score, 3)})
                 reset(model)
 
-                # Record the utterance until ~SILENCE_SECONDS of trailing silence.
-                frames, started, silent = [], False, 0
+                # Drop the wake-word tail ("…jarvis") so it doesn't get mistaken
+                # for the command and trigger the trailing-silence cutoff.
+                for _ in range(SKIP_FRAMES):
+                    stream.read(CHUNK)
+
+                # Capture the command: wait up to START_SECONDS for speech to
+                # begin (the user usually pauses after the wake word — that
+                # leading silence must NOT end the capture), then record until
+                # ~SILENCE_SECONDS of trailing silence.
+                frames, started, silent, waited = [], False, 0, 0
                 for _ in range(max_frames):
                     data, _ = stream.read(CHUNK)
                     f = data[:, 0]
+                    loud = rms(f) > SILENCE_RMS
+                    if not started:
+                        if loud:
+                            started = True
+                            frames.append(f)
+                        else:
+                            waited += 1
+                            if waited >= start_hang:
+                                break  # nobody spoke a command
+                        continue
                     frames.append(f)
-                    if rms(f) > SILENCE_RMS:
-                        started, silent = True, 0
-                    elif started:
+                    if loud:
+                        silent = 0
+                    else:
                         silent += 1
                         if silent >= silence_hang:
                             break
 
-                emit({"event": "utterance", "wav": write_wav(frames)})
+                # Only transcribe if we actually captured speech; otherwise tell
+                # the agent to drop back to idle (no command followed the wake).
+                if started:
+                    emit({"event": "utterance", "wav": write_wav(frames)})
+                else:
+                    emit({"event": "aborted"})
                 reset(model)
     except Exception as e:  # noqa: BLE001
         emit({"event": "error", "message": f"audio capture failed: {e}"})

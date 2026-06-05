@@ -59,6 +59,7 @@ export class Orchestrator {
           rms,
           threshold: config.wakeWord.threshold,
         }),
+      () => this.convo.setState('idle'),
     );
   }
 

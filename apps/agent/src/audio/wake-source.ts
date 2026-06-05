@@ -31,6 +31,8 @@ export interface WakeSource {
     onUtterance: UtteranceHandler,
     onWake?: () => void,
     onScore?: ScoreHandler,
+    /** Wake fired but no command followed — return to idle. */
+    onAbort?: () => void,
   ): Promise<void>;
   stop(): void;
 }
@@ -48,7 +50,7 @@ function createOpenWakeWordSource(): WakeSource {
   let stopped = false;
 
   return {
-    async start(onUtterance, onWake, onScore) {
+    async start(onUtterance, onWake, onScore, onAbort) {
       proc = spawn(config.wakeWord.python, [config.wakeWord.script], {
         env: {
           ...process.env,
@@ -98,6 +100,10 @@ function createOpenWakeWordSource(): WakeSource {
             break;
           case 'utterance':
             if (evt.wav) await onUtterance(evt.wav);
+            break;
+          case 'aborted':
+            log.info('wake fired but no command followed');
+            onAbort?.();
             break;
           case 'error':
             log.error('wake-word side-car error', evt.message);
