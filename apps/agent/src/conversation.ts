@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import type { AgentState, ServerEvent, Speaker, TranscriptEntry } from '@home-assistant/shared';
 import { AgentRunner } from './agent-runner.js';
+import { cleanForSpeech } from './tts/clean-text.js';
 import { createLogger } from './logger.js';
 
 export type Emit = (event: ServerEvent) => void;
@@ -120,15 +121,19 @@ export class Conversation {
     const enqueueSpeech = (chunk: string) => {
       const synth = this.synth;
       const play = this.play;
-      if (!synth || !play || !chunk.trim()) return;
+      if (!synth || !play) return;
+      // Strip markdown so it isn't read aloud literally; skip if nothing remains
+      // (e.g. a bare list marker).
+      const spoken = cleanForSpeech(chunk);
+      if (!spoken) return;
       if (!speaking) {
         speaking = true;
         speakStartedAt = Date.now();
         this.setState('speaking');
       }
-      log.debug('speak chunk', { head: chunk.trim().slice(0, 50) });
+      log.debug('speak chunk', { head: spoken.slice(0, 50) });
       // Fire synthesis NOW (don't await playback of earlier chunks).
-      const wav = Promise.resolve(synth(chunk)).catch((e) => {
+      const wav = Promise.resolve(synth(spoken)).catch((e) => {
         log.error('tts synth failed', e);
         return null;
       });

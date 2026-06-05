@@ -29,8 +29,10 @@ const PERSONA = [
 const OPERATIONAL = [
   'Always reply in the SAME language the user used in their message: detect it and match it exactly; never',
   'switch languages on your own.',
-  'Your answers are read aloud by a text-to-speech engine, so keep them short and natural, with no markdown,',
-  'lists or emoji unless explicitly asked.',
+  'Your reply is sent straight to a text-to-speech engine and spoken aloud, so write plain spoken prose only.',
+  'Never use markdown or any formatting: no asterisks, bold, headings, bullet points, numbered lists, tables,',
+  'code blocks or emoji. If you need to enumerate things, say them in a natural sentence (e.g. "first…,',
+  'second…, and third…"). Keep answers short and conversational.',
   'If a request needs current events, prices, news or any external/factual lookup, call the web_search tool',
   'before answering.',
   config.memory.enabled
