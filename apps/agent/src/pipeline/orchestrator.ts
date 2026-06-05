@@ -6,6 +6,7 @@
  */
 import { unlink } from 'node:fs/promises';
 import { playWav } from '../audio/player.js';
+import { playCue } from '../audio/cues.js';
 import { createWakeSource, type WakeSource } from '../audio/wake-source.js';
 import { config } from '../config/env.js';
 import type { Conversation } from '../conversation.js';
@@ -31,6 +32,8 @@ export class Orchestrator {
         void unlink(wav).catch(() => {});
       }
     };
+    // Closing cue once the spoken answer finishes playing.
+    this.convo.onSpeechEnd = () => playCue('done');
   }
 
   /** Inject a text turn (e.g. from the kiosk) without using the microphone. */
@@ -51,7 +54,10 @@ export class Orchestrator {
     });
     await this.source.start(
       (wavPath) => this.handleUtterance(wavPath),
-      () => this.convo.setState('listening'),
+      () => {
+        this.convo.setState('listening');
+        void playCue('wake'); // "your turn to speak"
+      },
       (score, rms) =>
         this.convo.emit?.({
           type: 'wake',
@@ -65,6 +71,7 @@ export class Orchestrator {
 
   private async handleUtterance(wavPath: string): Promise<void> {
     this.convo.setState('thinking');
+    void playCue('thinking'); // "got it, working on it"
     let text = '';
     const startedAt = Date.now();
     try {

@@ -120,7 +120,7 @@ export const config = {
     geminiBaseUrl:
       process.env.STT_GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta',
     geminiApiKey: process.env.STT_GEMINI_API_KEY ?? process.env.LLM_API_KEY ?? '',
-    geminiModel: process.env.STT_GEMINI_MODEL ?? 'gemini-2.5-flash',
+    geminiModel: process.env.STT_GEMINI_MODEL ?? 'gemini-2.5-flash-lite',
   },
 
   tts: {
@@ -140,6 +140,8 @@ export const config = {
     geminiBaseUrl:
       process.env.TTS_GEMINI_BASE_URL ?? 'https://generativelanguage.googleapis.com/v1beta',
     geminiApiKey: process.env.TTS_GEMINI_API_KEY ?? process.env.LLM_API_KEY ?? '',
+    // NB: the cheaper gemini-2.5-flash-lite-preview-tts is not on the AI Studio
+    // (generativelanguage) API yet — only flash/pro TTS are. flash is cheapest here.
     geminiModel: process.env.TTS_GEMINI_MODEL ?? 'gemini-2.5-flash-preview-tts',
     geminiVoice: process.env.TTS_GEMINI_VOICE ?? 'Kore',
   },
@@ -147,6 +149,8 @@ export const config = {
   audio: {
     /** Command used to play a WAV file. `aplay` on Pi/Linux, `afplay` on mac. */
     playerCommand: process.env.AUDIO_PLAYER ?? (process.platform === 'darwin' ? 'afplay' : 'aplay'),
+    /** Play short audio cues at wake / processing / done. Disable with AUDIO_CUES=false. */
+    cues: process.env.AUDIO_CUES !== 'false',
   },
 
   tools: {

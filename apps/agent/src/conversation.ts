@@ -46,6 +46,8 @@ export class Conversation {
   synth?: (text: string) => Promise<string | null>;
   /** Plays a synthesized WAV to completion (voice mode only). */
   play?: (wavPath: string) => Promise<void>;
+  /** Called once the spoken answer has finished playing (voice mode only). */
+  onSpeechEnd?: () => Promise<void> | void;
   /** Receives the growing answer text, e.g. for console rendering. */
   onText?: (update: { text: string; final: boolean }) => void;
   /** Receives the name of each tool the agent calls. */
@@ -54,7 +56,9 @@ export class Conversation {
   private readonly runner = new AgentRunner();
 
   constructor(
-    init: Partial<Pick<Conversation, 'emit' | 'synth' | 'play' | 'onText' | 'onTool'>> = {},
+    init: Partial<
+      Pick<Conversation, 'emit' | 'synth' | 'play' | 'onSpeechEnd' | 'onText' | 'onTool'>
+    > = {},
   ) {
     Object.assign(this, init);
   }
@@ -141,6 +145,7 @@ export class Conversation {
     await speakChain; // wait for all queued speech to finish playing
     if (speakStartedAt) {
       this.emit?.({ type: 'timing', stage: 'tts', ms: Date.now() - speakStartedAt });
+      await this.onSpeechEnd?.();
     }
     this.setState('idle');
     return full;
