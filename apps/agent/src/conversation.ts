@@ -38,8 +38,14 @@ function speakableChunk(pending: string, final: boolean): string {
 export class Conversation {
   /** Broadcasts events to the kiosk. Set after the WS server starts. */
   emit?: Emit;
-  /** Speaks one chunk of the answer (voice mode only). */
-  speak?: (text: string) => Promise<void>;
+  /**
+   * Synthesizes one chunk of the answer to a WAV path (voice mode only). Kept
+   * separate from {@link play} so chunks can be synthesized in parallel — the
+   * next sentence renders while the current one is still playing.
+   */
+  synth?: (text: string) => Promise<string | null>;
+  /** Plays a synthesized WAV to completion (voice mode only). */
+  play?: (wavPath: string) => Promise<void>;
   /** Receives the growing answer text, e.g. for console rendering. */
   onText?: (update: { text: string; final: boolean }) => void;
   /** Receives the name of each tool the agent calls. */
@@ -47,7 +53,9 @@ export class Conversation {
 
   private readonly runner = new AgentRunner();
 
-  constructor(init: Partial<Pick<Conversation, 'emit' | 'speak' | 'onText' | 'onTool'>> = {}) {
+  constructor(
+    init: Partial<Pick<Conversation, 'emit' | 'synth' | 'play' | 'onText' | 'onTool'>> = {},
+  ) {
     Object.assign(this, init);
   }
 
@@ -72,18 +80,31 @@ export class Conversation {
     let speaking = false;
     let speakStartedAt = 0; // when the first chunk started being spoken
 
-    // Ordered TTS queue: speak each sentence as soon as it's ready, in order.
+    // TTS pipeline: start synthesizing each sentence the moment its text is
+    // ready (so renders run in parallel — important for slow cloud TTS), but
+    // play them strictly in order. `speakChain` only gates *playback*.
     let speakChain: Promise<void> = Promise.resolve();
     const enqueueSpeech = (chunk: string) => {
-      const speak = this.speak;
-      if (!speak || !chunk.trim()) return;
+      const synth = this.synth;
+      const play = this.play;
+      if (!synth || !play || !chunk.trim()) return;
       if (!speaking) {
         speaking = true;
         speakStartedAt = Date.now();
         this.setState('speaking');
       }
       log.debug('speak chunk', { head: chunk.trim().slice(0, 50) });
-      speakChain = speakChain.then(() => speak(chunk)).catch((e) => log.error('tts chunk failed', e));
+      // Fire synthesis NOW (don't await playback of earlier chunks).
+      const wav = Promise.resolve(synth(chunk)).catch((e) => {
+        log.error('tts synth failed', e);
+        return null;
+      });
+      speakChain = speakChain
+        .then(async () => {
+          const path = await wav; // usually already resolved by the time we get here
+          if (path) await play(path);
+        })
+        .catch((e) => log.error('tts play failed', e));
     };
     const flush = (final: boolean) => {
       const chunk = speakableChunk(full.slice(flushed), final);

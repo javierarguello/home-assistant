@@ -21,10 +21,10 @@ export class Orchestrator {
   private source?: WakeSource;
 
   constructor(private readonly convo: Conversation) {
-    // In voice mode, the final answer is spoken aloud.
-    this.convo.speak = async (text) => {
-      const wav = await this.tts.synthesize(text);
-      if (!wav) return;
+    // In voice mode, the final answer is spoken aloud. Synthesis and playback
+    // are separate so the conversation can render sentences ahead of playback.
+    this.convo.synth = (text) => this.tts.synthesize(text);
+    this.convo.play = async (wav) => {
       try {
         await playWav(wav);
       } finally {
