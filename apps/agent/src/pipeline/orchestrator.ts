@@ -34,6 +34,8 @@ export class Orchestrator {
     };
     // Closing cue once the spoken answer finishes playing.
     this.convo.onSpeechEnd = () => playCue('done');
+    // A short tick whenever the agent uses a tool (search, memory, …).
+    this.convo.onTool = () => void playCue('tool');
   }
 
   /** Inject a text turn (e.g. from the kiosk) without using the microphone. */

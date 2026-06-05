@@ -18,7 +18,7 @@ import { writePcm16Wav } from './wav.js';
 const log = createLogger('cues');
 const RATE = 16000;
 
-export type Cue = 'wake' | 'thinking' | 'done';
+export type Cue = 'wake' | 'thinking' | 'done' | 'tool';
 
 interface Segment {
   freq: number;
@@ -34,6 +34,7 @@ const CUES: Record<Cue, Segment[]> = {
     { freq: 784, ms: 80 },
   ], // double blip — "got it, working"
   done: [{ freq: 780, ms: 90 }, { freq: 520, ms: 150 }], // falling — "finished"
+  tool: [{ freq: 1175, ms: 70 }], // short high tick — "using a tool"
 };
 
 /** Renders a sequence of tones to 16-bit PCM, with short fades to avoid clicks. */
