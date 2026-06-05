@@ -8,6 +8,7 @@ import { config, readModelConfig, type RunMode } from './config/env.js';
 import { Conversation } from './conversation.js';
 import { createLogger, logFilePath } from './logger.js';
 import { startWsServer } from './server/ws.js';
+import { startConsolidationSchedule } from './memory/consolidate.js';
 
 const log = createLogger('main');
 
@@ -37,6 +38,10 @@ const ws = config.wsEnabled
   ? startWsServer(config.wsPort, { onText: (text) => void convo.handle(text) })
   : undefined;
 convo.emit = ws?.broadcast;
+
+// Periodically consolidate long-term memory in the background (no-op in the
+// short-lived chat REPL: the interval is unref'd).
+startConsolidationSchedule();
 
 if (mode === 'voice') {
   const { Orchestrator } = await import('./pipeline/orchestrator.js');

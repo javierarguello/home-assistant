@@ -162,4 +162,17 @@ export const config = {
     /** Tavily gives good web-search results; falls back to DuckDuckGo if empty. */
     tavilyApiKey: process.env.TAVILY_API_KEY ?? '',
   },
+
+  memory: {
+    /** Long-term memory: `remember`/`recall` tools + facts injected into the prompt. */
+    enabled: process.env.MEMORY_ENABLED !== 'false',
+    /** JSON store (gitignored, survives `git pull`; outside the repo via MEMORY_FILE). */
+    file: process.env.MEMORY_FILE ?? join(repoRoot, 'data', 'memory.json'),
+    /** Max facts injected into the system prompt each turn. */
+    maxInject: num(process.env.MEMORY_MAX_INJECT) ?? 30,
+    /** Background consolidation: how often to check (hours). */
+    consolidateHours: num(process.env.MEMORY_CONSOLIDATE_HOURS) ?? 6,
+    /** Only consolidate when this many facts have piled up unsummarized. */
+    consolidateThreshold: num(process.env.MEMORY_CONSOLIDATE_THRESHOLD) ?? 50,
+  },
 } as const;

@@ -24,3 +24,6 @@ voices/
 # Audio scratch
 *.wav
 *.tmp.wav
+
+# Long-term memory store (per-machine)
+data/
