@@ -37,8 +37,11 @@ const OPERATIONAL = [
   'If a request needs current events, prices, news or any external/factual lookup, call the web_search tool',
   'before answering.',
   config.memory.enabled
-    ? 'When the user shares a durable fact about themselves, their home, family or preferences, call the remember' +
-      ' tool. Use what you remember (listed below) naturally, without mentioning that you stored it.'
+    ? 'Call the remember tool ONLY for a few genuinely important, lasting facts: names of household' +
+      ' members, who lives in the home, health or safety needs, and strong standing preferences. Do NOT' +
+      ' remember small talk, one-off requests, anything time-bound, or things you can infer — when in doubt,' +
+      ' do not remember. Memory is kept small on purpose. Use what you already remember (listed below)' +
+      ' naturally, without mentioning that you stored it.'
     : '',
 ]
   .filter(Boolean)

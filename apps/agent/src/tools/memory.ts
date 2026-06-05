@@ -10,11 +10,12 @@ import { rememberFact, recallFacts } from '../memory/store.js';
 export const rememberTool = new FunctionTool({
   name: 'remember',
   description:
-    'Save a durable fact about the user, their home, family, routines or ' +
-    'preferences so you can use it in future conversations. Call this whenever ' +
-    'the user shares something worth remembering long-term (e.g. their name, ' +
-    'where they work, who lives with them, likes/dislikes). Do NOT save ' +
-    'one-off, trivial or time-bound details.',
+    'Save ONE genuinely important, lasting fact about the user or their home so ' +
+    'it survives across conversations — e.g. a household member\'s name, who lives ' +
+    'in the home, a health/safety need, or a strong standing preference. Long-term ' +
+    'memory is kept deliberately small, so be selective: do NOT save small talk, ' +
+    'one-off requests, time-bound details, or anything trivial or inferable. When ' +
+    'in doubt, do not call this tool.',
   parameters: z.object({
     fact: z
       .string()

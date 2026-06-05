@@ -173,16 +173,31 @@ export const config = {
     githubDefaultRepo: process.env.GITHUB_DEFAULT_REPO ?? '',
   },
 
+  session: {
+    /**
+     * Drop the in-memory conversation after this many minutes with no activity
+     * (a user turn or a background task). Keeps the context — and the tokens
+     * sent each turn — from growing unbounded across an idle gap.
+     */
+    idleResetMs: (num(process.env.SESSION_IDLE_RESET_MINUTES) ?? 60) * 60_000,
+  },
+
   memory: {
     /** Long-term memory: `remember`/`recall` tools + facts injected into the prompt. */
     enabled: process.env.MEMORY_ENABLED !== 'false',
     /** JSON store (gitignored, survives `git pull`; outside the repo via MEMORY_FILE). */
     file: process.env.MEMORY_FILE ?? join(repoRoot, 'data', 'memory.json'),
+    /**
+     * Hard cap on stored facts. Memory is kept deliberately small to save tokens
+     * (it's injected into the prompt every turn): consolidation trims to this,
+     * keeping only the most important facts.
+     */
+    maxFacts: num(process.env.MEMORY_MAX_FACTS) ?? 20,
     /** Max facts injected into the system prompt each turn. */
     maxInject: num(process.env.MEMORY_MAX_INJECT) ?? 30,
     /** Background consolidation: how often to check (hours). */
     consolidateHours: num(process.env.MEMORY_CONSOLIDATE_HOURS) ?? 6,
-    /** Only consolidate when this many facts have piled up unsummarized. */
-    consolidateThreshold: num(process.env.MEMORY_CONSOLIDATE_THRESHOLD) ?? 50,
+    /** Consolidate when this many facts have piled up unsummarized. */
+    consolidateThreshold: num(process.env.MEMORY_CONSOLIDATE_THRESHOLD) ?? 15,
   },
 } as const;

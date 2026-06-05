@@ -10,14 +10,20 @@ import { allFacts, replaceFacts, unsummarizedCount } from './store.js';
 
 const log = createLogger('memory');
 
+const MAX_FACTS = config.memory.maxFacts;
+
 const SYSTEM_PROMPT = [
   "You consolidate a personal voice assistant's long-term memory about its user.",
-  'Given a list of remembered facts, return a cleaned-up list that:',
-  '- merges duplicates and near-duplicates into a single fact;',
-  '- drops outdated facts when a newer one contradicts them (keep the newer);',
-  '- removes trivial or time-bound noise;',
-  '- keeps each fact as one concise, standalone sentence in its original language.',
-  'Do not invent facts. Return ONLY a JSON array of strings, nothing else.',
+  'This memory is injected into the prompt every turn, so it must stay SMALL and high-value.',
+  `Given a list of remembered facts, return AT MOST ${MAX_FACTS} facts — keep only the most`,
+  'important and lasting ones (identities, household members, health/safety, strong standing',
+  'preferences) and DROP the rest. Also:',
+  '- merge duplicates and near-duplicates into a single fact;',
+  '- drop outdated facts when a newer one contradicts them (keep the newer);',
+  '- remove trivial, time-bound, or low-value noise even if it means returning far fewer facts;',
+  '- keep each fact as one concise, standalone sentence in its original language.',
+  `Order the result from most to least important. Do not invent facts. Return ONLY a JSON array`,
+  'of strings, nothing else.',
 ].join(' ');
 
 /** Strips ```json fences and parses the array. */
@@ -61,9 +67,12 @@ export async function consolidateMemory(): Promise<{ before: number; after: numb
   if (facts.length < 2) return null;
   const merged = await summarizeFacts(facts.map((f) => f.text));
   if (!merged) return null;
-  await replaceFacts(merged);
-  log.info('memory consolidated', { before: facts.length, after: merged.length });
-  return { before: facts.length, after: merged.length };
+  // Hard cap as a safety net in case the model ignores the limit: keep the most
+  // important (the prompt asks for them first).
+  const capped = merged.slice(0, MAX_FACTS);
+  await replaceFacts(capped);
+  log.info('memory consolidated', { before: facts.length, after: capped.length });
+  return { before: facts.length, after: capped.length };
 }
 
 /** Starts the periodic check. Consolidates only when enough facts are unsummarized. */
@@ -73,8 +82,11 @@ export function startConsolidationSchedule(): void {
   const tick = async () => {
     try {
       const pending = await unsummarizedCount();
-      if (pending > config.memory.consolidateThreshold) {
-        log.info('memory consolidation triggered', { unsummarized: pending });
+      const total = (await allFacts()).length;
+      // Consolidate when enough new facts have piled up OR whenever the bank has
+      // grown past its hard cap — so it can never stay large for long.
+      if (pending > config.memory.consolidateThreshold || total > config.memory.maxFacts) {
+        log.info('memory consolidation triggered', { unsummarized: pending, total });
         await consolidateMemory();
       }
     } catch (e) {

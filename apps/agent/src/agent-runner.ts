@@ -5,6 +5,7 @@
 import { InMemoryRunner, StreamingMode, isFinalResponse } from '@google/adk';
 import type { Event } from '@google/adk';
 import { rootAgent } from './agents/root-agent.js';
+import { config } from './config/env.js';
 import { createLogger } from './logger.js';
 
 const log = createLogger('agent');
@@ -19,16 +20,70 @@ export type AskUpdate =
 export class AgentRunner {
   private readonly runner = new InMemoryRunner({ agent: rootAgent, appName: APP_NAME });
   private readonly userId = 'local-user';
+  private readonly idleMs = config.session.idleResetMs;
   private sessionId?: string;
+  private lastActivityAt = 0;
+  private sweeper?: ReturnType<typeof setInterval>;
 
-  /** Creates (or reuses) the conversation session. */
+  /**
+   * Ensures a live conversation session. If the previous one has been idle past
+   * the configured window, it's dropped first so we start fresh — this is what
+   * keeps the per-turn token cost from carrying stale context across a long gap.
+   */
   async init(): Promise<void> {
-    if (this.sessionId) return;
-    const session = await this.runner.sessionService.createSession({
-      appName: APP_NAME,
-      userId: this.userId,
-    });
-    this.sessionId = session.id;
+    if (this.sessionId && Date.now() - this.lastActivityAt > this.idleMs) {
+      await this.reset('idle');
+    }
+    if (!this.sessionId) {
+      const session = await this.runner.sessionService.createSession({
+        appName: APP_NAME,
+        userId: this.userId,
+      });
+      this.sessionId = session.id;
+      this.startSweeper();
+    }
+    this.markActivity();
+  }
+
+  /**
+   * Records activity so the idle timer doesn't expire mid-work. Called on every
+   * user turn; background tasks that should keep the conversation alive can call
+   * it too.
+   */
+  markActivity(): void {
+    this.lastActivityAt = Date.now();
+  }
+
+  /** Drops the in-memory conversation, freeing its accumulated context (tokens). */
+  async reset(reason = 'manual'): Promise<void> {
+    const id = this.sessionId;
+    this.sessionId = undefined;
+    if (this.sweeper) {
+      clearInterval(this.sweeper);
+      this.sweeper = undefined;
+    }
+    if (!id) return;
+    try {
+      await this.runner.sessionService.deleteSession({
+        appName: APP_NAME,
+        userId: this.userId,
+        sessionId: id,
+      });
+    } catch {
+      /* best-effort; the service is RAM-only anyway */
+    }
+    log.info('conversation session dropped', { reason });
+  }
+
+  /** Background check that proactively drops the session once it goes idle. */
+  private startSweeper(): void {
+    if (this.sweeper) return;
+    this.sweeper = setInterval(() => {
+      if (this.sessionId && Date.now() - this.lastActivityAt > this.idleMs) {
+        void this.reset('idle');
+      }
+    }, Math.min(this.idleMs, 60_000));
+    this.sweeper.unref?.(); // never keep the process alive just for this
   }
 
   /** Sends a user message and streams back updates from the agent graph. */
@@ -57,6 +112,7 @@ export class AgentRunner {
         yield { type: 'partial', text };
       }
     }
+    this.markActivity(); // count the idle window from the end of the turn
   }
 }
 
