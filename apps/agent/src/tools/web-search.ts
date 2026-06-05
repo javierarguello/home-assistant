@@ -30,15 +30,38 @@ export const webSearchTool = new FunctionTool({
   }),
   execute: async ({ query }) => {
     try {
-      const results = config.tools.tavilyApiKey
-        ? await searchTavily(query)
-        : await searchDuckDuckGo(query);
+      const results = config.tools.braveApiKey
+        ? await searchBrave(query)
+        : config.tools.tavilyApiKey
+          ? await searchTavily(query)
+          : await searchDuckDuckGo(query);
       return { query, results };
     } catch (error) {
       return { query, error: (error as Error).message, results: [] as SearchResult[] };
     }
   },
 });
+
+async function searchBrave(query: string): Promise<SearchResult[]> {
+  const url = new URL('https://api.search.brave.com/res/v1/web/search');
+  url.searchParams.set('q', query);
+  url.searchParams.set('count', '5');
+  const res = await fetch(url, {
+    headers: {
+      Accept: 'application/json',
+      'X-Subscription-Token': config.tools.braveApiKey,
+    },
+  });
+  if (!res.ok) throw new Error(`Brave error ${res.status}`);
+  const data = (await res.json()) as {
+    web?: { results?: Array<{ title: string; url: string; description: string }> };
+  };
+  return (data.web?.results ?? []).map((r) => ({
+    title: r.title,
+    url: r.url,
+    snippet: r.description,
+  }));
+}
 
 async function searchTavily(query: string): Promise<SearchResult[]> {
   const res = await fetch('https://api.tavily.com/search', {

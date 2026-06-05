@@ -159,7 +159,8 @@ export const config = {
      * (e.g. llama3.2:1b) that over-call tools or emit malformed arguments.
      */
     webSearch: process.env.ENABLE_WEB_SEARCH !== 'false',
-    /** Tavily gives good web-search results; falls back to DuckDuckGo if empty. */
+    /** Web-search backend, in order of preference: Brave > Tavily > DuckDuckGo (keyless). */
+    braveApiKey: process.env.BRAVE_API_KEY ?? '',
     tavilyApiKey: process.env.TAVILY_API_KEY ?? '',
   },
 
