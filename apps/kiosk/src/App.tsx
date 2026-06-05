@@ -133,7 +133,7 @@ function DebugMetrics({ metrics }: { metrics: Metrics }) {
 }
 
 export function App() {
-  const { state, transcript, connected, wake, metrics, send } = useAgentSocket();
+  const { state, transcript, connected, wake, metrics, activity, send } = useAgentSocket();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const prevState = useRef<AgentState>('idle');
@@ -213,6 +213,20 @@ export function App() {
             <div className="status">
               {state === 'idle' && <span className="status-dot" />} {STATUS[state]}
             </div>
+            {activity && (
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 13,
+                  letterSpacing: 1,
+                  color: '#0cf',
+                  opacity: 0.85,
+                  textShadow: '0 0 8px rgba(0,255,255,0.4)',
+                }}
+              >
+                ▸ {activity}
+              </div>
+            )}
           </div>
 
           <div className={`central-out ${isSpeaking ? 'open' : ''}`}>

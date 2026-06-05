@@ -30,6 +30,7 @@ export function useAgentSocket() {
   const [connected, setConnected] = useState(false);
   const [wake, setWake] = useState<WakeMeter>(WAKE_IDLE);
   const [metrics, setMetrics] = useState<Metrics>({});
+  const [activity, setActivity] = useState('');
   const wsRef = useRef<WebSocket | null>(null);
   const wakeDecay = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -47,7 +48,11 @@ export function useAgentSocket() {
       };
       ws.onmessage = (event) => {
         const ev = JSON.parse(event.data) as ServerEvent;
-        if (ev.type === 'state') setState(ev.state);
+        if (ev.type === 'state') {
+          setState(ev.state);
+          // Activity describes "thinking" work; clear it once we speak or go idle.
+          if (ev.state === 'speaking' || ev.state === 'idle') setActivity('');
+        } else if (ev.type === 'activity') setActivity(ev.label);
         else if (ev.type === 'wake') {
           // Refresh the meter and decay it to zero if frames stop arriving
           // (e.g. while thinking/speaking the side-car pauses scoring).
@@ -101,5 +106,5 @@ export function useAgentSocket() {
     wsRef.current?.send(JSON.stringify(ev));
   }, []);
 
-  return { state, transcript, connected, wake, metrics, send };
+  return { state, transcript, connected, wake, metrics, activity, send };
 }

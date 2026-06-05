@@ -13,6 +13,20 @@ export type Emit = (event: ServerEvent) => void;
 
 const log = createLogger('conversation');
 
+/** Maps a tool name to a friendly, non-technical activity label for the kiosk. */
+function activityLabel(tool: string): string {
+  switch (tool) {
+    case 'web_search':
+      return 'Buscando en la web…';
+    case 'remember':
+      return 'Guardando en memoria…';
+    case 'recall':
+      return 'Consultando lo que recuerdo…';
+    default:
+      return 'Trabajando…';
+  }
+}
+
 /**
  * Longest speakable prefix of `pending`: up to the last sentence terminator, or
  * (if it's getting long with none) a clause break; the whole thing when `final`.
@@ -123,6 +137,7 @@ export class Conversation {
         if (update.type === 'tool') {
           log.info('tool call', { tool: update.tool });
           this.onTool?.(update.tool);
+          this.emit?.({ type: 'activity', label: activityLabel(update.tool) });
           continue;
         }
         if (update.type === 'partial') full += update.text;

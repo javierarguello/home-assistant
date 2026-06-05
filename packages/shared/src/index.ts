@@ -39,7 +39,9 @@ export type ServerEvent =
    */
   | { type: 'wake'; score: number; threshold: number; rms: number }
   /** Per-stage latency of a turn, for the kiosk's debug overlay. */
-  | { type: 'timing'; stage: TimingStage; ms: number };
+  | { type: 'timing'; stage: TimingStage; ms: number }
+  /** Human-friendly description of what the agent is doing (e.g. a tool call). */
+  | { type: 'activity'; label: string };
 
 /** Pipeline stages whose latency the kiosk's debug overlay reports. */
 export type TimingStage = 'stt' | 'llm' | 'tts';
