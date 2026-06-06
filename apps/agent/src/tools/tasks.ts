@@ -16,10 +16,11 @@ const KINDS = Object.keys(WORKERS) as [string, ...string[]];
 export const startTaskTool = new FunctionTool({
   name: 'start_task',
   description:
-    'Delegate a heavy, multi-step job to a background agent (e.g. investigating a GitHub repo: ' +
-    'commits, diffs between branches/tags, PRs, deployments). Returns immediately with a task id; ' +
-    'the work continues in the background and you will be told when it finishes. After calling this, ' +
-    "tell the user you're on it. Use it instead of doing such work inline.",
+    'Delegate a heavy, multi-step job to a background agent. Kinds: "github" (investigate a repo — ' +
+    'commits, diffs between branches/tags, PRs, deployments) and "research" (deep web research across ' +
+    'many sources). Returns immediately with a task id; the work continues in the background and you ' +
+    "will be told when it finishes. After calling this, tell the user you're on it. Use it instead of " +
+    'doing such heavy work inline.',
   parameters: z.object({
     kind: z.enum(KINDS).describe('Which kind of background worker to use.'),
     request: z
@@ -38,6 +39,27 @@ export const startTaskTool = new FunctionTool({
     try {
       const info = await taskManager().start({ kind, request, needsCodeAnalysis });
       return { taskId: info.id, kind: info.kind, status: 'started' };
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  },
+});
+
+export const controlTaskTool = new FunctionTool({
+  name: 'control_task',
+  description:
+    'Pause, resume, or cancel a background task the user asked to stop or hold. "cancel" kills it for ' +
+    'good; "pause"/"resume" freeze and continue it. If the user does not say which task and only one is ' +
+    'active, omit taskId. Use check_tasks first if you need the id.',
+  parameters: z.object({
+    action: z.enum(['cancel', 'pause', 'resume']).describe('What to do with the task.'),
+    taskId: z.string().optional().describe('Which task; omit to target the single active one.'),
+  }),
+  execute: async ({ action, taskId }) => {
+    try {
+      const mgr = taskManager();
+      const info = action === 'cancel' ? mgr.cancel(taskId) : action === 'pause' ? mgr.pause(taskId) : mgr.resume(taskId);
+      return { ok: true, taskId: info.id, status: info.status };
     } catch (error) {
       return { error: (error as Error).message };
     }
@@ -68,4 +90,4 @@ export const checkTasksTool = new FunctionTool({
   },
 });
 
-export const taskTools = [startTaskTool, checkTasksTool];
+export const taskTools = [startTaskTool, checkTasksTool, controlTaskTool];

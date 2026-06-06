@@ -9,6 +9,7 @@ import { Conversation } from './conversation.js';
 import { createLogger, logFilePath } from './logger.js';
 import { startWsServer } from './server/ws.js';
 import { startConsolidationSchedule } from './memory/consolidate.js';
+import { setDetailSink } from './tools/detail.js';
 import { taskManager } from './tasks/instance.js';
 
 const log = createLogger('main');
@@ -39,6 +40,8 @@ const ws = config.wsEnabled
   ? startWsServer(config.wsPort, { onText: (text) => void convo.handle(text) })
   : undefined;
 convo.emit = ws?.broadcast;
+// Tools can push rich HTML "details" straight to the kiosk sidebar.
+setDetailSink(ws ? (detail) => ws.broadcast({ type: 'detail', detail }) : undefined);
 
 // Periodically consolidate long-term memory in the background (no-op in the
 // short-lived chat REPL: the interval is unref'd).

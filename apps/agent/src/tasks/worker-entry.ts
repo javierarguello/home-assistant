@@ -9,7 +9,7 @@
  */
 import { createServer } from 'node:net';
 import { toA2a } from '@google/adk';
-import { config, readWorkerModel } from '../config/env.js';
+import { config } from '../config/env.js';
 import { createLogger } from '../logger.js';
 import { WORKERS, isWorkerKind } from './workers/index.js';
 
@@ -43,8 +43,9 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const needsAnalysis = process.env.WORKER_NEEDS_ANALYSIS === 'true';
-  const model = readWorkerModel(needsAnalysis);
-  const agent = WORKERS[kind].build(model);
+  const spec = WORKERS[kind];
+  const model = spec.resolveModel(needsAnalysis);
+  const agent = spec.build(model);
 
   const host = config.tasks.host;
   const port = await freePort(host);

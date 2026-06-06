@@ -7,6 +7,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import type {
   AgentState,
   ClientEvent,
+  Detail,
   ServerEvent,
   TaskInfo,
   TranscriptEntry,
@@ -34,6 +35,8 @@ export function startWsServer(port: number, handlers: WsHandlers = {}): WsServer
   const transcript: TranscriptEntry[] = [];
   // Latest snapshot per task, so a freshly-connected kiosk catches up via `hello`.
   const tasks = new Map<string, TaskInfo>();
+  // Recent tool details (rolling), so a freshly-connected kiosk can show them.
+  const details: Detail[] = [];
 
   const broadcast: Emit = (event) => {
     if (event.type === 'state') state = event.state;
@@ -43,13 +46,14 @@ export function startWsServer(port: number, handlers: WsHandlers = {}): WsServer
     }
     if (event.type === 'task') {
       // Drop finished tasks from the catch-up snapshot after a grace window;
-      // keep running ones. (Live clients still get every event.)
-      if (event.task.status === 'completed' || event.task.status === 'failed') {
-        tasks.set(event.task.id, event.task);
-        setTimeout(() => tasks.delete(event.task.id), 60_000).unref?.();
-      } else {
-        tasks.set(event.task.id, event.task);
-      }
+      // keep running/paused ones. (Live clients still get every event.)
+      const terminal = ['completed', 'failed', 'canceled'].includes(event.task.status);
+      tasks.set(event.task.id, event.task);
+      if (terminal) setTimeout(() => tasks.delete(event.task.id), 60_000).unref?.();
+    }
+    if (event.type === 'detail') {
+      details.push(event.detail);
+      if (details.length > 10) details.shift();
     }
     const data = JSON.stringify(event);
     for (const client of wss.clients) {
@@ -59,7 +63,13 @@ export function startWsServer(port: number, handlers: WsHandlers = {}): WsServer
 
   wss.on('connection', (ws) => {
     log.info('kiosk connected', { clients: wss.clients.size });
-    const hello: ServerEvent = { type: 'hello', state, transcript: [...transcript], tasks: [...tasks.values()] };
+    const hello: ServerEvent = {
+      type: 'hello',
+      state,
+      transcript: [...transcript],
+      tasks: [...tasks.values()],
+      details: [...details],
+    };
     ws.send(JSON.stringify(hello));
     ws.on('close', () => log.info('kiosk disconnected', { clients: wss.clients.size }));
     ws.on('message', (raw) => {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AgentState,
   ClientEvent,
+  Detail,
   ServerEvent,
   TaskInfo,
   TranscriptEntry,
@@ -33,6 +34,7 @@ export function useAgentSocket() {
   const [metrics, setMetrics] = useState<Metrics>({});
   const [activity, setActivity] = useState('');
   const [tasks, setTasks] = useState<TaskInfo[]>([]);
+  const [details, setDetails] = useState<Detail[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const wakeDecay = useRef<ReturnType<typeof setTimeout>>(undefined);
   const taskTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -69,6 +71,9 @@ export function useAgentSocket() {
           setState(ev.state);
           setTranscript(ev.transcript);
           setTasks(ev.tasks ?? []);
+          setDetails(ev.details ?? []);
+        } else if (ev.type === 'detail') {
+          setDetails((d) => [...d, ev.detail].slice(-10));
         } else if (ev.type === 'task') {
           const task = ev.task;
           setTasks((ts) => {
@@ -81,7 +86,7 @@ export function useAgentSocket() {
             return [...ts, task];
           });
           // Keep a finished task on screen briefly (✓), then drop it.
-          if (task.status === 'completed' || task.status === 'failed') {
+          if (task.status === 'completed' || task.status === 'failed' || task.status === 'canceled') {
             clearTimeout(taskTimers.current.get(task.id));
             taskTimers.current.set(
               task.id,
@@ -131,5 +136,5 @@ export function useAgentSocket() {
     wsRef.current?.send(JSON.stringify(ev));
   }, []);
 
-  return { state, transcript, connected, wake, metrics, activity, tasks, send };
+  return { state, transcript, connected, wake, metrics, activity, tasks, details, send };
 }

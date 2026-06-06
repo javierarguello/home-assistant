@@ -97,6 +97,72 @@ export class TaskManager {
     return [...this.registry.values()].map((r) => this.view(r));
   }
 
+  /** Resolve a task by id, or the single active one if no id is given. */
+  private resolve(id?: string): TaskRecord | undefined {
+    if (id) return this.registry.get(id);
+    const active = [...this.registry.values()].filter(
+      (r) => r.status === 'running' || r.status === 'starting' || r.status === 'paused',
+    );
+    return active.length === 1 ? active[0] : undefined;
+  }
+
+  /** Freeze a running worker process (SIGSTOP). Best-effort. */
+  pause(id?: string): TaskInfo {
+    const rec = this.resolve(id);
+    if (!rec) throw new Error('no matching task to pause');
+    if (rec.status === 'running' || rec.status === 'starting') {
+      this.signal(rec, 'SIGSTOP');
+      rec.status = 'paused';
+      rec.lastActivityAt = Date.now();
+      this.emit(rec);
+      void this.persist();
+    }
+    return this.view(rec);
+  }
+
+  /** Resume a paused worker process (SIGCONT). */
+  resume(id?: string): TaskInfo {
+    const rec = this.resolve(id);
+    if (!rec) throw new Error('no matching task to resume');
+    if (rec.status === 'paused') {
+      this.signal(rec, 'SIGCONT');
+      rec.status = 'running';
+      rec.lastActivityAt = Date.now();
+      this.emit(rec);
+      void this.persist();
+    }
+    return this.view(rec);
+  }
+
+  /** Kill a worker in progress and mark the task canceled (no summary). */
+  cancel(id?: string): TaskInfo {
+    const rec = this.resolve(id);
+    if (!rec) throw new Error('no matching task to cancel');
+    rec.status = 'canceled';
+    rec.finishedAt = Date.now();
+    rec.banked = true; // don't summarize incomplete work
+    this.killWorker(rec); // SIGCONT-then-kill handled in killWorker
+    this.emit(rec);
+    void this.persist();
+    // Drop it from the registry shortly so check_tasks/kiosk clear it.
+    setTimeout(() => {
+      this.registry.delete(rec.id);
+      void this.persist();
+    }, 5_000).unref?.();
+    log.info('task canceled', { id: rec.id });
+    return this.view(rec);
+  }
+
+  private signal(rec: TaskRecord, sig: NodeJS.Signals): void {
+    const child = this.children.get(rec.id);
+    try {
+      if (child?.pid) process.kill(child.pid, sig);
+      else if (rec.pid) process.kill(rec.pid, sig);
+    } catch {
+      /* process already gone */
+    }
+  }
+
   /** Starts a background task; returns its id immediately (does not block). */
   async start(input: { kind: string; request: string; needsCodeAnalysis?: boolean }): Promise<TaskInfo> {
     if (!isWorkerKind(input.kind)) throw new Error(`unknown task kind "${input.kind}"`);
@@ -263,9 +329,8 @@ export class TaskManager {
 
   /** Marks a task done, announces it, and keeps the worker alive until idle-reaped. */
   private finish(rec: TaskRecord, status: 'completed' | 'failed', result?: string): void {
-    if (rec.status === 'completed' || rec.status === 'failed') {
-      // already finalised; still refresh result if richer
-    }
+    // Don't override a terminal state (e.g. a user cancel, or a double finish).
+    if (rec.status === 'completed' || rec.status === 'failed' || rec.status === 'canceled') return;
     rec.status = status;
     rec.finishedAt = Date.now();
     rec.lastActivityAt = Date.now();
@@ -287,6 +352,7 @@ export class TaskManager {
   private sweep(): void {
     const now = Date.now();
     for (const rec of this.registry.values()) {
+      if (rec.status === 'paused') continue; // a user-paused task is never idle-reaped
       if (now - rec.lastActivityAt > this.idleMs) void this.reap(rec);
     }
   }
@@ -311,9 +377,12 @@ export class TaskManager {
   private killWorker(rec: TaskRecord): void {
     const child = this.children.get(rec.id);
     this.children.delete(rec.id);
+    const pid = child?.pid ?? rec.pid;
     try {
-      if (child) child.kill('SIGTERM');
-      else if (rec.pid) process.kill(rec.pid, 'SIGTERM');
+      if (pid) {
+        process.kill(pid, 'SIGCONT'); // un-pause first so SIGTERM is delivered
+        process.kill(pid, 'SIGTERM');
+      }
     } catch {
       /* already gone */
     }
@@ -364,14 +433,14 @@ export class TaskManager {
       };
       this.registry.set(rec.id, rec);
       this.emit(rec);
-      void this.resume(rec);
+      void this.reattach(rec);
       log.info('task recovered', { id: rec.id, pid: rec.pid });
     }
     await this.persist();
   }
 
   /** Re-attaches to a recovered worker via getTask + resubscribe. */
-  private async resume(rec: TaskRecord): Promise<void> {
+  private async reattach(rec: TaskRecord): Promise<void> {
     if (!rec.agentCardUrl || !rec.a2aTaskId) {
       this.finish(rec, 'failed', 'lost worker handle after restart');
       return;

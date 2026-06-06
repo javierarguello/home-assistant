@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
-import type { AgentState, TaskInfo } from '@home-assistant/shared';
+import type { AgentState, Detail, TaskInfo } from '@home-assistant/shared';
 import { chime, enableChimeOnInteraction } from './chime.js';
 import { Starfield } from './Starfield.js';
 import {
@@ -135,14 +135,18 @@ function DebugMetrics({ metrics }: { metrics: Metrics }) {
 const TASK_ICON: Record<TaskInfo['status'], string> = {
   starting: '◌',
   running: '▸',
+  paused: '⏸',
   completed: '✓',
   failed: '✕',
+  canceled: '⊘',
 };
 const TASK_COLOR: Record<TaskInfo['status'], string> = {
   starting: '#0cf',
   running: '#0cf',
+  paused: '#fc3',
   completed: '#3f6',
   failed: '#f55',
+  canceled: '#999',
 };
 
 /** Live panel of background task agents (running + just-finished). */
@@ -190,8 +194,162 @@ function TasksPanel({ tasks }: { tasks: TaskInfo[] }) {
   );
 }
 
+/**
+ * Expandable detail sidebar: rich HTML pushed by tools (e.g. search results).
+ * Expanded, it takes 80% of the width on the left; the right 20% keeps a compact
+ * summary of the assistant. Collapses to a tab on the edge.
+ */
+function DetailSidebar({
+  details,
+  state,
+  answer,
+}: {
+  details: Detail[];
+  state: AgentState;
+  answer: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [sel, setSel] = useState(0);
+  if (!details.length) return null;
+  const current = details[Math.min(sel, details.length - 1)];
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setSel(details.length - 1);
+          setOpen(true);
+        }}
+        style={{
+          position: 'fixed',
+          left: 0,
+          top: '40%',
+          zIndex: 40,
+          background: 'rgba(0,20,28,0.9)',
+          color: '#0cf',
+          border: '1px solid rgba(0,255,255,0.35)',
+          borderLeft: 'none',
+          borderRadius: '0 6px 6px 0',
+          padding: '10px 8px',
+          fontFamily: 'monospace',
+          fontSize: 12,
+          letterSpacing: 1,
+          cursor: 'pointer',
+          writingMode: 'vertical-rl',
+        }}
+      >
+        ▸ DETALLE · {details.length}
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 40, display: 'flex' }}>
+      <style>{`
+        .detail-html ul.results { list-style: none; margin: 0; padding: 0; }
+        .detail-html ul.results li { margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(0,255,255,0.12); }
+        .detail-html a { color: #4cf; text-decoration: none; font-size: 15px; }
+        .detail-html a:hover { text-decoration: underline; }
+        .detail-html .snip { color: #9ab; font-size: 13px; margin-top: 3px; }
+        .detail-html table { border-collapse: collapse; width: 100%; }
+        .detail-html td, .detail-html th { border: 1px solid rgba(0,255,255,0.15); padding: 4px 8px; font-size: 13px; }
+      `}</style>
+      {/* Left 80%: the rich detail */}
+      <aside
+        style={{
+          width: '80%',
+          height: '100%',
+          background: 'rgba(0,8,12,0.97)',
+          borderRight: '1px solid rgba(0,255,255,0.3)',
+          boxShadow: '0 0 40px rgba(0,255,255,0.15)',
+          display: 'flex',
+          flexDirection: 'column',
+          color: '#cde',
+          fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        <header
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 16px',
+            borderBottom: '1px solid rgba(0,255,255,0.2)',
+            color: '#0cf',
+            fontFamily: 'monospace',
+            letterSpacing: 1,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            style={{
+              background: 'transparent',
+              border: '1px solid rgba(0,255,255,0.4)',
+              color: '#0cf',
+              borderRadius: 4,
+              padding: '4px 10px',
+              cursor: 'pointer',
+            }}
+          >
+            ✕ COLAPSAR
+          </button>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {current?.title}
+          </span>
+          {details.length > 1 && (
+            <select
+              value={Math.min(sel, details.length - 1)}
+              onChange={(e) => setSel(Number(e.target.value))}
+              style={{ background: '#012', color: '#0cf', border: '1px solid rgba(0,255,255,0.3)', borderRadius: 4 }}
+            >
+              {details.map((d, i) => (
+                <option key={d.id} value={i}>
+                  {d.title.slice(0, 40)}
+                </option>
+              ))}
+            </select>
+          )}
+        </header>
+        <div
+          className="detail-html"
+          style={{ flex: 1, overflow: 'auto', padding: 16, lineHeight: 1.5 }}
+          dangerouslySetInnerHTML={{ __html: current?.html ?? '' }}
+        />
+      </aside>
+
+      {/* Right 20%: compact summary */}
+      <div
+        style={{
+          width: '20%',
+          height: '100%',
+          background: 'rgba(0,4,8,0.92)',
+          padding: 16,
+          color: '#0cf',
+          fontFamily: 'monospace',
+          fontSize: 12,
+          letterSpacing: 0.5,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 12,
+        }}
+        onClick={() => setOpen(false)}
+      >
+        <div style={{ opacity: 0.6 }}>HAL · 9000</div>
+        <div style={{ fontSize: 14 }}>{STATUS[state]}</div>
+        <div style={{ opacity: 0.6, marginTop: 8 }}>ÚLTIMA RESPUESTA</div>
+        <div style={{ color: '#cde', fontFamily: 'system-ui, sans-serif', overflow: 'auto', flex: 1 }}>
+          {answer || '—'}
+        </div>
+        <div style={{ opacity: 0.4, fontSize: 10 }}>toca para cerrar</div>
+      </div>
+    </div>
+  );
+}
+
 export function App() {
-  const { state, transcript, connected, wake, metrics, activity, tasks, send } = useAgentSocket();
+  const { state, transcript, connected, wake, metrics, activity, tasks, details, send } = useAgentSocket();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const prevState = useRef<AgentState>('idle');
@@ -235,6 +393,7 @@ export function App() {
       <Starfield />
       {DEBUG && <DebugMetrics metrics={metrics} />}
       <TasksPanel tasks={tasks} />
+      <DetailSidebar details={details} state={state} answer={answer} />
       <div className="grid-floor" aria-hidden />
       <div className="scanlines" aria-hidden />
 

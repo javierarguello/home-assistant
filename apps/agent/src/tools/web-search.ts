@@ -12,11 +12,21 @@ import { FunctionTool } from '@google/adk';
 // Import from the same zod build ADK uses for tool schemas (`zod/v4`).
 import { z } from 'zod/v4';
 import { config } from '../config/env.js';
+import { emitDetail, escapeHtml } from './detail.js';
 
-interface SearchResult {
+export interface SearchResult {
   title: string;
   url: string;
   snippet: string;
+}
+
+/** Runs a web search via the configured backend (Brave > Tavily > DuckDuckGo). */
+export async function searchWeb(query: string): Promise<SearchResult[]> {
+  return config.tools.braveApiKey
+    ? searchBrave(query)
+    : config.tools.tavilyApiKey
+      ? searchTavily(query)
+      : searchDuckDuckGo(query);
 }
 
 export const webSearchTool = new FunctionTool({
@@ -30,11 +40,18 @@ export const webSearchTool = new FunctionTool({
   }),
   execute: async ({ query }) => {
     try {
-      const results = config.tools.braveApiKey
-        ? await searchBrave(query)
-        : config.tools.tavilyApiKey
-          ? await searchTavily(query)
-          : await searchDuckDuckGo(query);
+      const results = await searchWeb(query);
+      // Push a rich, clickable list to the kiosk sidebar (not spoken).
+      if (results.length) {
+        const items = results
+          .map(
+            (r) =>
+              `<li><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.title)}</a>` +
+              `<div class="snip">${escapeHtml(r.snippet)}</div></li>`,
+          )
+          .join('');
+        emitDetail(`Búsqueda: ${query}`, `<ul class="results">${items}</ul>`);
+      }
       return { query, results };
     } catch (error) {
       return { query, error: (error as Error).message, results: [] as SearchResult[] };

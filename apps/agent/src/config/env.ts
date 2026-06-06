@@ -58,12 +58,11 @@ export function readModelConfig(agentKey: string): ModelConfig {
 }
 
 /**
- * Model for a background worker. Always the cheap default (`WORKER_*`); when a
- * task needs to analyze/reason over code, it escalates to `WORKER_ANALYSIS_*`.
- * Both layer down to `WORKER_*` then the global `LLM_*` defaults.
+ * Resolves a worker model from a layered list of env prefixes (first match per
+ * field wins), falling back to the global `LLM_*` defaults. `defaultThink` sets
+ * the reasoning toggle when no `*_THINK` env is given.
  */
-export function readWorkerModel(needsCodeAnalysis: boolean): ModelConfig {
-  const prefixes = needsCodeAnalysis ? ['WORKER_ANALYSIS', 'WORKER'] : ['WORKER'];
+function layeredModel(prefixes: string[], defaultThink?: boolean): ModelConfig {
   const get = (suffix: string) => {
     for (const p of prefixes) {
       const v = process.env[`${p}_${suffix}`];
@@ -81,8 +80,25 @@ export function readWorkerModel(needsCodeAnalysis: boolean): ModelConfig {
     maxTokens: num(get('MAX_TOKENS') ?? process.env.LLM_MAX_TOKENS),
     auth: auth === 'gcloud' ? 'gcloud' : undefined,
     gcloudAccount: get('GCLOUD_ACCOUNT') ?? process.env.LLM_GCLOUD_ACCOUNT,
-    think: think === 'true' ? true : think === 'false' ? false : undefined,
+    think: think === 'true' ? true : think === 'false' ? false : defaultThink,
   };
+}
+
+/**
+ * Model for a generic background worker. Cheap default (`WORKER_*`); escalates to
+ * `WORKER_ANALYSIS_*` when a task needs to analyze/reason over code.
+ */
+export function readWorkerModel(needsCodeAnalysis: boolean): ModelConfig {
+  return layeredModel(needsCodeAnalysis ? ['WORKER_ANALYSIS', 'WORKER'] : ['WORKER']);
+}
+
+/**
+ * Model for the research worker: a stronger model with reasoning/thinking ON by
+ * default. Override via `WORKER_RESEARCH_*`; falls back to the analysis/worker
+ * models then `LLM_*`.
+ */
+export function readResearchModel(): ModelConfig {
+  return layeredModel(['WORKER_RESEARCH', 'WORKER_ANALYSIS', 'WORKER'], true);
 }
 
 export type SttProvider = 'whisper-local' | 'whisper-server' | 'openai' | 'gemini' | 'mock';
@@ -243,5 +259,7 @@ export const config = {
     bankMax: num(process.env.TASK_BANK_MAX) ?? 10,
     /** Host the A2A worker servers bind to (localhost only for now). */
     host: process.env.TASK_WORKER_HOST ?? '127.0.0.1',
+    /** Research worker: max search turns before it must write its final report. */
+    researchMaxTurns: num(process.env.RESEARCH_MAX_TURNS) ?? 12,
   },
 } as const;
