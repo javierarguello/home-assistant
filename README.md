@@ -108,5 +108,7 @@ systemd, also `journalctl --user -u home-assistant-agent -f`.
   full loop on Pi hardware.
 - **Fase 2:** kiosk autostart (`chromium --kiosk`), polish, packaging.
 
-See [docs/architecture.md](docs/architecture.md) and
-[docs/raspberry-pi-setup.md](docs/raspberry-pi-setup.md).
+See [docs/architecture.md](docs/architecture.md),
+[docs/raspberry-pi-setup.md](docs/raspberry-pi-setup.md) (incl. deploying to the
+live Pi), [docs/background-tasks.md](docs/background-tasks.md), and
+[docs/wake-word.md](docs/wake-word.md).

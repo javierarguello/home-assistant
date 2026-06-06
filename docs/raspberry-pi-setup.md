@@ -205,3 +205,55 @@ journalctl --user -u home-assistant-agent -f      # service stdout/stderr
 
 Tune verbosity with `LOG_LEVEL=debug` and mirror everything to the console with
 `LOG_CONSOLE=true` (what `npm run live` sets).
+
+## 8. This Pi (deployment specifics)
+
+The live device:
+
+- **Host:** `raspberry.local` (ARM64 / Raspberry Pi). SSH as the `claude` user
+  (`ssh claude@raspberry.local`), which has a key configured.
+- **Repo:** checked out at **`/srv/home-assistant`** (a shared location, writable
+  by all users — not under a single home dir).
+- **LLM:** Google Gemini via its OpenAI-compatible endpoint —
+  `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/`,
+  `LLM_MODEL=gemini-2.5-flash-lite`, with `LLM_API_KEY` set (static key).
+- **Services:** user systemd units (`home-assistant-agent`, `home-assistant-whisper`);
+  manage with `systemctl --user …`.
+
+### Deploying an update
+
+Run on the Pi (or over SSH). Full path (rebuilds deps/whisper, idempotent):
+
+```bash
+ssh claude@raspberry.local 'cd /srv/home-assistant && npm run deploy'
+```
+
+**Light deploy** when only app code changed (no new npm deps, no native rebuild):
+the agent runs via `tsx` and consumes `@home-assistant/shared` as source, so no
+build step is needed — just pull and restart:
+
+```bash
+ssh claude@raspberry.local '
+  cd /srv/home-assistant && git pull --ff-only &&
+  systemctl --user restart home-assistant-agent.service'
+```
+
+> `.env` is gitignored, so a pull never changes it. After enabling a feature in
+> code, add its env vars to the Pi's `.env` by hand (see below) before restarting.
+
+### Env vars to enable background tasks here
+
+`WORKER_*` fall back to `LLM_*`, so the cheap default is already Gemini Flash-Lite.
+Set a stronger model for the analysis/research escalations and turn tasks on:
+
+```bash
+TASKS_ENABLED=true
+WORKER_ANALYSIS_MODEL=<a stronger Gemini, e.g. gemini-2.5-pro>
+WORKER_RESEARCH_MODEL=<a stronger Gemini, e.g. gemini-2.5-pro>
+# GitHub worker (optional): needs its own token
+# ENABLE_GITHUB=true
+# GITHUB_TOKEN=ghp_...
+```
+
+Research's web search reuses the existing `TAVILY_API_KEY`. See
+[background-tasks.md](background-tasks.md) for the full feature + config.
