@@ -42,6 +42,8 @@ export interface TaskRecord {
   a2aTaskId?: string; // the A2A task id (for resubscribe after a restart)
   lastActivityAt: number;
   banked?: boolean;
+  /** True once finish()/cancel() has run its finalization (announce/bank/emit). */
+  finalized?: boolean;
 }
 
 interface ManagerOptions {
@@ -138,6 +140,7 @@ export class TaskManager {
   cancel(id?: string): TaskInfo {
     const rec = this.resolve(id);
     if (!rec) throw new Error('no matching task to cancel');
+    rec.finalized = true; // a late stream-end finish() must not override this
     rec.status = 'canceled';
     rec.finishedAt = Date.now();
     rec.banked = true; // don't summarize incomplete work
@@ -340,8 +343,11 @@ export class TaskManager {
 
   /** Marks a task done, announces it, and keeps the worker alive until idle-reaped. */
   private finish(rec: TaskRecord, status: 'completed' | 'failed', result?: string): void {
-    // Don't override a terminal state (e.g. a user cancel, or a double finish).
-    if (rec.status === 'completed' || rec.status === 'failed' || rec.status === 'canceled') return;
+    // Finalize exactly once. Guard on `finalized`, NOT on rec.status — the stream
+    // sets rec.status='completed' before we get here, so a status check would wrongly
+    // skip finalization (announce/bank/emit).
+    if (rec.finalized) return;
+    rec.finalized = true;
     rec.status = status;
     rec.finishedAt = Date.now();
     rec.lastActivityAt = Date.now();
