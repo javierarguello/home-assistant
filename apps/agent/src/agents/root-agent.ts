@@ -38,6 +38,9 @@ const OPERATIONAL = [
   'second…, and third…"). Keep answers short and conversational.',
   'If a request needs current events, prices, news or any external/factual lookup, call the web_search tool',
   'before answering.',
+  'When you need the user to reply right away, END your message with a question mark "?": that keeps the',
+  'microphone open for a few seconds so they can answer without repeating the wake word. Only end with "?"',
+  'when you genuinely want an immediate spoken answer; otherwise end with a period so the mic stays closed.',
   config.memory.enabled
     ? 'Call the remember tool ONLY for a few genuinely important, lasting facts: names of household' +
       ' members, who lives in the home, health or safety needs, and strong standing preferences. Do NOT' +

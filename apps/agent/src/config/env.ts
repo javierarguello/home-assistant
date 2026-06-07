@@ -137,6 +137,8 @@ export const config = {
     /** openWakeWord model name (e.g. hey_jarvis) / .onnx path, or a Porcupine keyword/.ppn. */
     word: process.env.WAKE_WORD ?? 'hey_jarvis',
     threshold: num(process.env.WAKE_WORD_THRESHOLD) ?? 0.5,
+    /** After a reply that ends with "?", reopen the mic for the answer (no wake word). */
+    followup: process.env.WAKEWORD_FOLLOWUP !== 'false',
     // openWakeWord side-car:
     python: process.env.WAKEWORD_PYTHON ?? join(repoRoot, 'vendor/wakeword-venv/bin/python'),
     script: process.env.WAKEWORD_SCRIPT ?? join(repoRoot, 'apps/agent/python/wakeword_runner.py'),

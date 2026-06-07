@@ -34,6 +34,8 @@ export interface WakeSource {
     /** Wake fired but no command followed — return to idle. */
     onAbort?: () => void,
   ): Promise<void>;
+  /** Capture an utterance NOW without a wake word (e.g. answer a question). */
+  capture?(): void;
   stop(): void;
 }
 
@@ -60,7 +62,8 @@ function createOpenWakeWordSource(): WakeSource {
             ? { WAKEWORD_INPUT_DEVICE: config.wakeWord.inputDevice }
             : {}),
         },
-        stdio: ['ignore', 'pipe', 'pipe'],
+        // stdin piped so we can ask the side-car to capture a follow-up answer.
+        stdio: ['pipe', 'pipe', 'pipe'],
       });
       proc.on('error', (e) =>
         log.error('failed to start wake-word side-car (is the venv installed?)', e),
@@ -110,6 +113,10 @@ function createOpenWakeWordSource(): WakeSource {
             break;
         }
       }
+    },
+    capture() {
+      // Tell the side-car to record an answer immediately (no wake word).
+      proc?.stdin?.write('capture\n');
     },
     stop() {
       stopped = true;

@@ -101,11 +101,26 @@ export class Orchestrator {
     // before re-throwing; swallow it here so we keep listening for the next
     // wake word.
     try {
-      await this.convo.handle(text.trim());
+      const answer = await this.convo.handle(text.trim());
+      this.maybeFollowUp(answer);
     } catch (error) {
       log.error('turn failed; staying live', error);
       this.convo.setState('idle');
     }
+  }
+
+  /**
+   * If the assistant's reply is a question (ends with "?"), reopen the mic for the
+   * user's answer without requiring the wake word — fluid back-and-forth. The
+   * side-car captures the next utterance (or aborts to idle if nobody speaks).
+   */
+  private maybeFollowUp(answer: string): void {
+    if (!config.wakeWord.followup || !this.source?.capture) return;
+    if (!answer.trim().endsWith('?')) return;
+    log.info('question asked — listening for the answer (no wake word)');
+    this.convo.setState('listening');
+    void playCue('wake');
+    this.source.capture();
   }
 }
 

@@ -20,6 +20,7 @@ Config via env vars (set by the Node side):
 """
 import json
 import os
+import select
 import sys
 import tempfile
 import time
@@ -77,6 +78,52 @@ def reset(model):
             pass
 
 
+def poll_command():
+    """Non-blocking read of a one-line command from the Node side (e.g. 'capture')."""
+    try:
+        ready, _, _ = select.select([sys.stdin], [], [], 0)
+        if not ready:
+            return None
+        line = sys.stdin.readline()
+        return line.strip() if line else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def capture_command(stream, skip_tail):
+    """Records one command utterance: waits up to START_SECONDS for speech to begin,
+    then records until ~SILENCE_SECONDS of trailing silence. Returns (frames, started)."""
+    silence_hang = max(1, int(SILENCE_SECONDS * SAMPLE_RATE / CHUNK))
+    start_hang = max(1, int(START_SECONDS * SAMPLE_RATE / CHUNK))
+    max_frames = int(MAX_SECONDS * SAMPLE_RATE / CHUNK)
+    if skip_tail:
+        # Drop the wake-word tail ("…jarvis") so it isn't mistaken for the command.
+        for _ in range(SKIP_FRAMES):
+            stream.read(CHUNK)
+    frames, started, silent, waited = [], False, 0, 0
+    for _ in range(max_frames):
+        data, _ = stream.read(CHUNK)
+        f = data[:, 0]
+        loud = rms(f) > SILENCE_RMS
+        if not started:
+            if loud:
+                started = True
+                frames.append(f)
+            else:
+                waited += 1
+                if waited >= start_hang:
+                    break  # nobody spoke
+            continue
+        frames.append(f)
+        if loud:
+            silent = 0
+        else:
+            silent += 1
+            if silent >= silence_hang:
+                break
+    return frames, started
+
+
 def main():
     try:
         model = Model(wakeword_models=[MODEL])
@@ -84,16 +131,20 @@ def main():
         emit({"event": "error", "message": f"failed to load wake-word model '{MODEL}': {e}"})
         return 1
 
-    silence_hang = max(1, int(SILENCE_SECONDS * SAMPLE_RATE / CHUNK))
-    start_hang = max(1, int(START_SECONDS * SAMPLE_RATE / CHUNK))
-    max_frames = int(MAX_SECONDS * SAMPLE_RATE / CHUNK)
-
     try:
         with sd.InputStream(
             samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=CHUNK, device=INPUT_DEVICE
         ) as stream:
             emit({"event": "ready", "model": MODEL})
             while True:
+                # Follow-up capture: the agent asked a question, so the Node side
+                # tells us to listen for the answer directly (no wake word needed).
+                if poll_command() == "capture":
+                    frames, started = capture_command(stream, skip_tail=False)
+                    emit({"event": "utterance", "wav": write_wav(frames)} if started else {"event": "aborted"})
+                    reset(model)
+                    continue
+
                 data, _ = stream.read(CHUNK)
                 frame = data[:, 0]
                 scores = model.predict(frame)
@@ -107,38 +158,7 @@ def main():
 
                 emit({"event": "wake", "score": round(score, 3)})
                 reset(model)
-
-                # Drop the wake-word tail ("…jarvis") so it doesn't get mistaken
-                # for the command and trigger the trailing-silence cutoff.
-                for _ in range(SKIP_FRAMES):
-                    stream.read(CHUNK)
-
-                # Capture the command: wait up to START_SECONDS for speech to
-                # begin (the user usually pauses after the wake word — that
-                # leading silence must NOT end the capture), then record until
-                # ~SILENCE_SECONDS of trailing silence.
-                frames, started, silent, waited = [], False, 0, 0
-                for _ in range(max_frames):
-                    data, _ = stream.read(CHUNK)
-                    f = data[:, 0]
-                    loud = rms(f) > SILENCE_RMS
-                    if not started:
-                        if loud:
-                            started = True
-                            frames.append(f)
-                        else:
-                            waited += 1
-                            if waited >= start_hang:
-                                break  # nobody spoke a command
-                        continue
-                    frames.append(f)
-                    if loud:
-                        silent = 0
-                    else:
-                        silent += 1
-                        if silent >= silence_hang:
-                            break
-
+                frames, started = capture_command(stream, skip_tail=True)
                 # Only transcribe if we actually captured speech; otherwise tell
                 # the agent to drop back to idle (no command followed the wake).
                 if started:
