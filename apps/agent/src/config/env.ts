@@ -127,6 +127,8 @@ export const config = {
     name: process.env.ASSISTANT_NAME ?? 'Asistente',
     /** Language hint passed to the model and STT. */
     language: process.env.ASSISTANT_LANGUAGE ?? 'es',
+    /** IANA timezone for the current-date/time tool (default: the home's). */
+    timezone: process.env.ASSISTANT_TIMEZONE ?? process.env.TZ ?? 'America/New_York',
   },
 
   wakeWord: {
