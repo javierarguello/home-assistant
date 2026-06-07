@@ -27,7 +27,14 @@ export interface TranscriptEntry {
 }
 
 /** Status of a background task agent. */
-export type TaskStatus = 'starting' | 'running' | 'paused' | 'completed' | 'failed' | 'canceled';
+export type TaskStatus =
+  | 'starting'
+  | 'running'
+  | 'paused'
+  | 'awaiting_input' // worker asked the user a question and is waiting for the answer
+  | 'completed'
+  | 'failed'
+  | 'canceled';
 
 /** A background task agent, shown in the kiosk's "AGENTES" panel. */
 export interface TaskInfo {
@@ -39,6 +46,10 @@ export interface TaskInfo {
   step?: string;
   /** True when the task escalated to the Pro/code-analysis model (shows a think icon). */
   analysis: boolean;
+  /** When status is 'awaiting_input': the worker's question for the user. */
+  pendingQuestion?: string;
+  /** Optional answer choices the user can pick (else free-form). */
+  pendingOptions?: string[];
   startedAt: number;
   finishedAt?: number;
 }
@@ -79,6 +90,8 @@ export type TimingStage = 'stt' | 'llm' | 'tts';
 /** Events the kiosk (or a dev tool) can send to the backend. */
 export type ClientEvent =
   | { type: 'text'; text: string } // type a message instead of speaking
-  | { type: 'interrupt' }; // stop current speech / cancel turn
+  | { type: 'interrupt' } // stop current speech / cancel turn
+  | { type: 'task-answer'; taskId: string; answer: string } // answer a worker's question
+  | { type: 'task-status'; taskId: string }; // ask what a worker is doing
 
 export const WS_DEFAULT_PORT = 8787;

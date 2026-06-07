@@ -37,7 +37,26 @@ const convo = new Conversation();
 await convo.init();
 
 const ws = config.wsEnabled
-  ? startWsServer(config.wsPort, { onText: (text) => void convo.handle(text) })
+  ? startWsServer(config.wsPort, {
+      onText: (text) => void convo.handle(text),
+      // A kiosk answered a worker's question (or asked what it's doing).
+      onTaskAnswer: (taskId, answer) => {
+        if (!config.tasks.enabled) return;
+        try {
+          taskManager().answer(taskId, answer);
+        } catch (e) {
+          log.error('task answer failed', e);
+        }
+      },
+      onTaskStatus: (taskId) => {
+        if (!config.tasks.enabled) return;
+        try {
+          ws?.broadcast({ type: 'task', task: taskManager().liveStatus(taskId) });
+        } catch (e) {
+          log.error('task status failed', e);
+        }
+      },
+    })
   : undefined;
 convo.emit = ws?.broadcast;
 // Tools can push rich HTML "details" straight to the kiosk sidebar.

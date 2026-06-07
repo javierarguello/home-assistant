@@ -12,10 +12,15 @@ Ideas not yet scheduled. See the roadmap in the README for the current phase.
   to the agent for STT → the normal turn pipeline (e.g. a new client→server WS
   message carrying the audio, handled alongside the existing typed-text path).
 
-## Background agents (interactive layer)
+## Background agents (interactive layer) — DONE (pending live verification)
 
-- **Live status query / give-context-and-resume / input-required.** Let the root ask
-  a running sub-agent what it's doing, feed it more context and resume it, and let a
-  sub-agent stop to ask the user a question (A2A input-required) — surfacing options
-  on screen (detail sidebar) so the user can answer and the task resumes. (Pause /
-  cancel already exist via `control_task`; the output bank already exists.)
+Implemented: `ask_user` (input-required) + `answer_task`/`task-answer` resume +
+`task_status` live query, surfaced via voice + kiosk option buttons. See
+[background-tasks.md](background-tasks.md). Remaining:
+
+- **Inject context into a still-`running` worker** (not just when awaiting input or
+  finished) — would need queuing a mid-run message.
+- **Richer live progress** — workers narrating step-by-step so `task_status` shows
+  fine-grained activity (today it's status + last step).
+- **Live end-to-end verification** of the input-required → answer → resume round-trip
+  against real Gemini/ADK (function-response DataPart shape).

@@ -81,9 +81,9 @@ export const controlTaskTool = new FunctionTool({
 export const checkTasksTool = new FunctionTool({
   name: 'check_tasks',
   description:
-    'List the background tasks that are running or recently finished, plus a few summaries of older ' +
-    'completed work. Use it to answer what the agents are doing, whether something finished, or to ' +
-    'recall what a past task found.',
+    'List the background tasks that are running, waiting for the user, or recently finished, plus a few ' +
+    'summaries of older completed work. Use it to answer what the agents are doing, whether something ' +
+    'finished, whether one is waiting on the user, or to recall what a past task found.',
   parameters: z.object({}),
   execute: async () => {
     const active = taskManager().list();
@@ -96,10 +96,51 @@ export const checkTasksTool = new FunctionTool({
         status: t.status,
         step: t.step,
         analysis: t.analysis,
+        pendingQuestion: t.pendingQuestion,
+        pendingOptions: t.pendingOptions,
       })),
       recent: past.map((s) => ({ kind: s.kind, title: s.title, summary: s.text })),
     };
   },
 });
 
-export const taskTools = [startTaskTool, checkTasksTool, controlTaskTool];
+export const taskStatusTool = new FunctionTool({
+  name: 'task_status',
+  description:
+    "Check what a specific background task is doing right now (its status, latest step, and any question " +
+    "it is waiting on). Use it to explain to the user what an agent is up to. Omit taskId for the single " +
+    'active task.',
+  parameters: z.object({
+    taskId: z.string().optional().describe('Which task; omit to use the single active one.'),
+  }),
+  execute: async ({ taskId }) => {
+    try {
+      const t = taskManager().liveStatus(taskId);
+      return { id: t.id, kind: t.kind, title: t.title, status: t.status, step: t.step, pendingQuestion: t.pendingQuestion };
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  },
+});
+
+export const answerTaskTool = new FunctionTool({
+  name: 'answer_task',
+  description:
+    'Answer a background task that is waiting for the user (status awaiting_input), or give a running task ' +
+    'more context to continue with. Use it when the user responds to a worker\'s question. Omit taskId if ' +
+    'only one task is waiting.',
+  parameters: z.object({
+    taskId: z.string().optional().describe('Which task; omit for the single task awaiting an answer.'),
+    answer: z.string().describe("The user's answer / extra context, in their words."),
+  }),
+  execute: async ({ taskId, answer }) => {
+    try {
+      const t = taskManager().answer(taskId, answer);
+      return { ok: true, taskId: t.id, status: t.status };
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  },
+});
+
+export const taskTools = [startTaskTool, checkTasksTool, controlTaskTool, taskStatusTool, answerTaskTool];

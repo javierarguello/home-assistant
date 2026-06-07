@@ -60,11 +60,35 @@ reap) use the cheap model — and need a **static API key** (skipped under
 
 ## Controlling tasks
 
-- **check_tasks** — lists running/recent tasks (id, kind, status, step) plus recent
-  summaries, so the assistant can answer "¿qué están haciendo?" / "¿ya terminó?".
+- **check_tasks** — lists running/recent tasks (id, kind, status, step, pending
+  question) plus recent summaries — "¿qué están haciendo?" / "¿ya terminó?".
+- **task_status** — what one task is doing right now (status + latest step + any
+  pending question).
 - **control_task** — `cancel` (SIGTERM, marks canceled), `pause` (SIGSTOP) / `resume`
   (SIGCONT). If the user doesn't name a task and only one is active, the id can be
   omitted. Pause is best-effort: a long pause may drop an in-flight model request.
+
+## Interactive: a worker can ask the user (generic, all workers)
+
+Every worker has a shared `ask_user(question, options?)` tool
+(`tasks/workers/interactive-tools.ts`) — a **LongRunningFunctionTool**. When a worker
+calls it, the A2A task enters `input-required`; the TaskManager marks the task
+`awaiting_input`, captures the question + options + the function-call id, and surfaces it:
+
+- **Voice:** spoken via the announce path.
+- **Screen:** the kiosk detail sidebar shows the question with clickable option
+  buttons (`<button class="task-option" data-task-id data-answer>`); the ❓ icon marks
+  the task in the AGENTES panel.
+
+The user answers two ways, both routed to `TaskManager.answer(taskId, answer)`:
+- **Kiosk:** clicking an option (or typing) sends a `task-answer` client event.
+- **Voice:** the root calls the `answer_task` tool with the user's reply (also used to
+  give a running task more context).
+
+`answer()` resumes the worker by re-opening the A2A stream on the same
+`taskId`+`contextId` with a **function-response** DataPart matching the `ask_user`
+call id (fallback: a plain text message on the same context). An `awaiting_input` task
+is never idle-reaped, and survives a restart (the pending question is re-surfaced).
 
 ## Task memory bank
 

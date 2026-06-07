@@ -46,9 +46,11 @@ const OPERATIONAL = [
       ' naturally, without mentioning that you stored it.'
     : '',
   config.tasks.enabled
-    ? 'For heavy, multi-step jobs (e.g. investigating a GitHub repo), delegate to a background agent with' +
-      ' the start_task tool instead of doing it inline, then tell the user you are on it. Use check_tasks' +
-      ' to report what is running or what a finished task found.'
+    ? 'For heavy, multi-step jobs (e.g. investigating a GitHub repo or web research), delegate to a' +
+      ' background agent with the start_task tool instead of doing it inline, then tell the user you are' +
+      ' on it. Use check_tasks / task_status to report what an agent is running or doing. If a task is' +
+      ' waiting for the user (status awaiting_input), relay its question; when the user replies, pass it' +
+      ' with answer_task. Use control_task to pause/resume/cancel on request.'
     : '',
 ]
   .filter(Boolean)

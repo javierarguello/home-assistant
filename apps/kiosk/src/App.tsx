@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type MouseEvent } from 'react';
 import type { AgentState, Detail, TaskInfo } from '@home-assistant/shared';
 import { chime, enableChimeOnInteraction } from './chime.js';
 import { Starfield } from './Starfield.js';
@@ -136,6 +136,7 @@ const TASK_ICON: Record<TaskInfo['status'], string> = {
   starting: '◌',
   running: '▸',
   paused: '⏸',
+  awaiting_input: '❓',
   completed: '✓',
   failed: '✕',
   canceled: '⊘',
@@ -144,6 +145,7 @@ const TASK_COLOR: Record<TaskInfo['status'], string> = {
   starting: '#0cf',
   running: '#0cf',
   paused: '#fc3',
+  awaiting_input: '#fc3',
   completed: '#3f6',
   failed: '#f55',
   canceled: '#999',
@@ -203,15 +205,26 @@ function DetailSidebar({
   details,
   state,
   answer,
+  onAnswer,
 }: {
   details: Detail[];
   state: AgentState;
   answer: string;
+  onAnswer: (taskId: string, answer: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [sel, setSel] = useState(0);
   if (!details.length) return null;
   const current = details[Math.min(sel, details.length - 1)];
+
+  // A worker's question renders option <button data-task-id data-answer>; capture clicks.
+  const onDetailClick = (e: MouseEvent<HTMLDivElement>) => {
+    const el = (e.target as HTMLElement).closest('button.task-option') as HTMLElement | null;
+    if (!el) return;
+    const taskId = el.getAttribute('data-task-id');
+    const ans = el.getAttribute('data-answer');
+    if (taskId && ans != null) onAnswer(taskId, ans);
+  };
 
   if (!open) {
     return (
@@ -254,6 +267,10 @@ function DetailSidebar({
         .detail-html .snip { color: #9ab; font-size: 13px; margin-top: 3px; }
         .detail-html table { border-collapse: collapse; width: 100%; }
         .detail-html td, .detail-html th { border: 1px solid rgba(0,255,255,0.15); padding: 4px 8px; font-size: 13px; }
+        .detail-html .task-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .detail-html button.task-option { background: rgba(0,255,255,0.1); color: #0cf; border: 1px solid rgba(0,255,255,0.5); border-radius: 6px; padding: 8px 14px; font-size: 15px; cursor: pointer; }
+        .detail-html button.task-option:hover { background: rgba(0,255,255,0.22); }
+        .detail-html .hint { color: #9ab; font-size: 13px; }
       `}</style>
       {/* Left 80%: the rich detail */}
       <aside
@@ -315,6 +332,7 @@ function DetailSidebar({
         <div
           className="detail-html"
           style={{ flex: 1, overflow: 'auto', padding: 16, lineHeight: 1.5 }}
+          onClick={onDetailClick}
           dangerouslySetInnerHTML={{ __html: current?.html ?? '' }}
         />
       </aside>
@@ -349,7 +367,8 @@ function DetailSidebar({
 }
 
 export function App() {
-  const { state, transcript, connected, wake, metrics, activity, tasks, details, send } = useAgentSocket();
+  const { state, transcript, connected, wake, metrics, activity, tasks, details, send, sendTaskAnswer } =
+    useAgentSocket();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const prevState = useRef<AgentState>('idle');
@@ -393,7 +412,7 @@ export function App() {
       <Starfield />
       {DEBUG && <DebugMetrics metrics={metrics} />}
       <TasksPanel tasks={tasks} />
-      <DetailSidebar details={details} state={state} answer={answer} />
+      <DetailSidebar details={details} state={state} answer={answer} onAnswer={sendTaskAnswer} />
       <div className="grid-floor" aria-hidden />
       <div className="scanlines" aria-hidden />
 

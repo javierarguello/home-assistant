@@ -9,6 +9,7 @@ import type { ModelConfig } from '../../config/env.js';
 import { config } from '../../config/env.js';
 import { buildModel } from '../../llm/resolve-model.js';
 import { researchTools } from './research-tools.js';
+import { interactiveTools } from './interactive-tools.js';
 
 const PROMPT = [
   'You are a research agent working a single delegated question in the background.',
@@ -23,8 +24,9 @@ const PROMPT = [
   '   that no longer matter. Keep the plan tight.',
   `4. You have about ${config.tasks.researchMaxTurns} search turns total — spend them deliberately. When the`,
   '   budget is gone, stop searching and synthesize.',
-  '5. If the task is ambiguous, blocked, or needs a real decision, call request_feedback and then end',
-  '   your turn with the question — do not guess on important forks.',
+  '5. If the task is ambiguous, blocked, or needs a real decision, call ask_user with a clear question',
+  '   (and options when it is a choice) and stop — you will resume when the user answers. Do not guess',
+  '   on important forks.',
   '',
   'Final report: plain prose (no markdown). Lead with the answer, then the key supporting findings,',
   'then the main source URLs. Be accurate and concise; flag uncertainty honestly.',
@@ -37,6 +39,6 @@ export function createResearchWorker(model: ModelConfig): LlmAgent {
     description: 'Deep web research: plans, searches across sources, and synthesizes a cited answer.',
     model: buildModel(model),
     instruction: PROMPT,
-    tools: researchTools,
+    tools: [...researchTools, ...interactiveTools],
   });
 }

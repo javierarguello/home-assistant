@@ -18,6 +18,7 @@ import type { Task, TaskStatusUpdateEvent, TaskArtifactUpdateEvent, Message, Par
 import type { TaskInfo, TaskStatus } from '@home-assistant/shared';
 import { config } from '../config/env.js';
 import { createLogger } from '../logger.js';
+import { emitDetail, escapeHtml } from '../tools/detail.js';
 import { type WorkerKind, WORKERS, isWorkerKind } from './workers/index.js';
 import { addSummary, summarizeTask } from './bank.js';
 
@@ -40,10 +41,15 @@ export interface TaskRecord {
   pid?: number;
   agentCardUrl?: string;
   a2aTaskId?: string; // the A2A task id (for resubscribe after a restart)
+  a2aContextId?: string; // the A2A context id (for resume / continuation)
   lastActivityAt: number;
   banked?: boolean;
   /** True once finish()/cancel() has run its finalization (announce/bank/emit). */
   finalized?: boolean;
+  // when status is 'awaiting_input':
+  pendingQuestion?: string;
+  pendingOptions?: string[];
+  pendingCallId?: string; // the ask_user function-call id to answer
 }
 
 interface ManagerOptions {
@@ -55,7 +61,8 @@ interface ManagerOptions {
 
 const PERSIST_KEYS = [
   'id', 'kind', 'title', 'request', 'status', 'analysis', 'startedAt',
-  'finishedAt', 'result', 'pid', 'agentCardUrl', 'a2aTaskId', 'banked',
+  'finishedAt', 'result', 'pid', 'agentCardUrl', 'a2aTaskId', 'a2aContextId', 'banked',
+  'pendingQuestion', 'pendingOptions', 'pendingCallId',
 ] as const;
 
 function partsText(parts?: Part[]): string {
@@ -166,6 +173,85 @@ export class TaskManager {
     }
   }
 
+  /** Answer a worker's question (or give it more context) and resume it. */
+  answer(id: string | undefined, answer: string): TaskInfo {
+    const rec = id
+      ? this.registry.get(id)
+      : [...this.registry.values()].find((r) => r.status === 'awaiting_input');
+    if (!rec) throw new Error('no task is awaiting an answer');
+    if (rec.status !== 'awaiting_input') throw new Error(`task ${rec.id} is not awaiting input`);
+    const handle = { callId: rec.pendingCallId, contextId: rec.a2aContextId, taskId: rec.a2aTaskId };
+    rec.status = 'running';
+    rec.step = `respondido: ${answer.slice(0, 60)}`;
+    rec.pendingQuestion = undefined;
+    rec.pendingOptions = undefined;
+    rec.pendingCallId = undefined;
+    rec.lastActivityAt = Date.now();
+    this.emit(rec);
+    void this.persist();
+    void this.resumeWithAnswer(rec, handle, answer);
+    return this.view(rec);
+  }
+
+  /** Live view of a task (status + step + pending question) for "what's it doing?". */
+  liveStatus(id?: string): TaskInfo {
+    const rec = id
+      ? this.registry.get(id)
+      : [...this.registry.values()].find(
+          (r) => r.status === 'running' || r.status === 'awaiting_input' || r.status === 'starting',
+        );
+    if (!rec) throw new Error('no matching task');
+    return this.view(rec);
+  }
+
+  /** Resumes a paused worker by sending the user's answer as a function response. */
+  private async resumeWithAnswer(
+    rec: TaskRecord,
+    handle: { callId?: string; contextId?: string; taskId?: string },
+    answer: string,
+  ): Promise<void> {
+    if (!rec.agentCardUrl) {
+      this.finish(rec, 'failed', 'lost worker handle');
+      return;
+    }
+    const textMessage = (): Message => ({
+      kind: 'message',
+      messageId: randomUUID(),
+      role: 'user',
+      taskId: handle.taskId,
+      contextId: handle.contextId,
+      parts: [{ kind: 'text', text: answer }],
+    });
+    try {
+      const client = await A2AClient.fromCardUrl(rec.agentCardUrl);
+      const message: Message = handle.callId
+        ? {
+            kind: 'message',
+            messageId: randomUUID(),
+            role: 'user',
+            taskId: handle.taskId,
+            contextId: handle.contextId,
+            parts: [
+              {
+                kind: 'data',
+                data: { id: handle.callId, name: 'ask_user', response: { answer } },
+                metadata: { adk_type: 'function_response' },
+              } as Part,
+            ],
+          }
+        : textMessage();
+      await this.consume(rec, client.sendMessageStream({ message }));
+    } catch (e) {
+      log.error('resume failed; retrying as plain text', { id: rec.id, err: (e as Error).message });
+      try {
+        const client = await A2AClient.fromCardUrl(rec.agentCardUrl);
+        await this.consume(rec, client.sendMessageStream({ message: textMessage() }));
+      } catch (e2) {
+        this.finish(rec, 'failed', `could not resume after answer: ${(e2 as Error).message}`);
+      }
+    }
+  }
+
   /** Starts a background task; returns its id immediately (does not block). */
   async start(input: {
     kind: string;
@@ -218,6 +304,7 @@ export class TaskManager {
     return {
       id: r.id, kind: r.kind, title: r.title, status: r.status,
       step: r.step, analysis: r.analysis, startedAt: r.startedAt, finishedAt: r.finishedAt,
+      pendingQuestion: r.pendingQuestion, pendingOptions: r.pendingOptions,
     };
   }
 
@@ -294,22 +381,29 @@ export class TaskManager {
   ): Promise<void> {
     let result = rec.result ?? '';
     let savedHandle = !!rec.a2aTaskId;
+    let awaiting = false;
     for await (const ev of stream) {
       rec.lastActivityAt = Date.now();
+      const ctx = (ev as { contextId?: string }).contextId;
+      if (ctx) rec.a2aContextId = ctx;
       if (ev.kind === 'task') {
         rec.a2aTaskId = ev.id;
-        if (ev.status?.state) this.applyState(rec, ev.status.state);
-        result += partsText(ev.status?.message?.parts);
+        if (ev.status?.state === 'input-required') awaiting = this.handleInputRequired(rec, ev.status.message);
+        else if (ev.status?.state) this.applyState(rec, ev.status.state);
       } else if (ev.kind === 'status-update') {
         rec.a2aTaskId = ev.taskId;
-        const stepText = partsText(ev.status?.message?.parts);
-        if (stepText) rec.step = stepText.slice(0, 100);
-        this.applyState(rec, ev.status?.state);
-        result += stepText;
+        if (ev.status?.state === 'input-required') {
+          awaiting = this.handleInputRequired(rec, ev.status.message);
+        } else {
+          const stepText = partsText(ev.status?.message?.parts);
+          if (stepText) rec.step = stepText.slice(0, 100);
+          this.applyState(rec, ev.status?.state);
+          result += stepText;
+        }
       } else if (ev.kind === 'artifact-update') {
         rec.a2aTaskId = ev.taskId;
         result += partsText(ev.artifact?.parts);
-        rec.status = 'running';
+        if (rec.status !== 'awaiting_input') rec.status = 'running';
       } else if (ev.kind === 'message') {
         result += partsText(ev.parts);
       }
@@ -320,8 +414,9 @@ export class TaskManager {
         void this.persist();
       }
       if (rec.status === 'running' || rec.status === 'starting') this.emit(rec);
-      if (rec.status === 'completed' || rec.status === 'failed') break;
+      if (awaiting || rec.status === 'completed' || rec.status === 'failed') break;
     }
+    if (awaiting) return; // paused for the user — handleInputRequired already surfaced it
     if (rec.status !== 'completed' && rec.status !== 'failed') {
       // Stream ended without an explicit terminal state — treat as done.
       this.finish(rec, 'completed', rec.result);
@@ -334,11 +429,47 @@ export class TaskManager {
     if (!state) return;
     if (state === 'completed') rec.status = 'completed';
     else if (state === 'failed' || state === 'canceled' || state === 'rejected') rec.status = 'failed';
-    else if (state === 'input-required') {
-      // Workers run autonomously; if one asks for input we can't supply, fail it.
-      rec.status = 'failed';
-      rec.step = 'needs input (not supported for background tasks)';
-    } else rec.status = 'running'; // submitted | working
+    else if (state === 'input-required') rec.status = 'awaiting_input';
+    else rec.status = 'running'; // submitted | working
+  }
+
+  /** A worker called ask_user: extract the question/options + call id and surface them. */
+  private handleInputRequired(rec: TaskRecord, message?: Message): boolean {
+    rec.status = 'awaiting_input';
+    rec.lastActivityAt = Date.now();
+    const parts = message?.parts ?? [];
+    const fn = parts.find(
+      (p) => p.kind === 'data' && (p.data as { name?: string } | undefined)?.name === 'ask_user',
+    );
+    const data = (fn as { data?: { id?: string; args?: { question?: string; options?: string[] } } } | undefined)?.data;
+    rec.pendingCallId = data?.id;
+    rec.pendingQuestion =
+      typeof data?.args?.question === 'string'
+        ? data.args.question
+        : 'El agente necesita tu respuesta para continuar.';
+    rec.pendingOptions = Array.isArray(data?.args?.options) ? data.args.options : undefined;
+    this.emit(rec);
+    void this.persist();
+    if (this.opts.announce) this.opts.announce(rec.pendingQuestion);
+    this.emitQuestionDetail(rec);
+    log.info('task awaiting input', { id: rec.id, q: rec.pendingQuestion.slice(0, 60) });
+    return true;
+  }
+
+  /** Shows the worker's question + clickable options in the kiosk sidebar. */
+  private emitQuestionDetail(rec: TaskRecord): void {
+    const buttons = (rec.pendingOptions ?? [])
+      .map(
+        (o) =>
+          `<button class="task-option" data-task-id="${escapeHtml(rec.id)}" data-answer="${escapeHtml(o)}">${escapeHtml(o)}</button>`,
+      )
+      .join(' ');
+    const html =
+      `<p>${escapeHtml(rec.pendingQuestion ?? '')}</p>` +
+      (buttons
+        ? `<div class="task-options">${buttons}</div>`
+        : '<p class="hint">Responde por voz o escribiendo.</p>');
+    emitDetail(`${WORKERS[rec.kind].label} pregunta`, html);
   }
 
   /** Marks a task done, announces it, and keeps the worker alive until idle-reaped. */
@@ -372,7 +503,8 @@ export class TaskManager {
   private sweep(): void {
     const now = Date.now();
     for (const rec of this.registry.values()) {
-      if (rec.status === 'paused') continue; // a user-paused task is never idle-reaped
+      // Never idle-reap a task the user paused or that is waiting for the user.
+      if (rec.status === 'paused' || rec.status === 'awaiting_input') continue;
       if (now - rec.lastActivityAt > this.idleMs) void this.reap(rec);
     }
   }
@@ -452,18 +584,27 @@ export class TaskManager {
         }
         continue;
       }
-      // Still-running worker: re-attach only if its process is alive.
+      // Still-running (or awaiting-input) worker: recover only if its process is alive.
       if (!isAlive(row.pid)) continue;
+      const awaiting = row.status === 'awaiting_input';
       const rec: TaskRecord = {
         id: row.id, kind: row.kind, title: row.title ?? row.kind, request: row.request ?? '',
-        status: 'running', analysis: !!row.analysis, startedAt: row.startedAt ?? Date.now(),
-        result: row.result, pid: row.pid, agentCardUrl: row.agentCardUrl, a2aTaskId: row.a2aTaskId,
+        status: awaiting ? 'awaiting_input' : 'running', analysis: !!row.analysis,
+        startedAt: row.startedAt ?? Date.now(),
+        result: row.result, pid: row.pid, agentCardUrl: row.agentCardUrl,
+        a2aTaskId: row.a2aTaskId, a2aContextId: row.a2aContextId,
+        pendingQuestion: row.pendingQuestion, pendingOptions: row.pendingOptions, pendingCallId: row.pendingCallId,
         lastActivityAt: Date.now(),
       };
       this.registry.set(rec.id, rec);
       this.emit(rec);
-      void this.reattach(rec);
-      log.info('task recovered', { id: rec.id, pid: rec.pid });
+      if (awaiting) {
+        // Re-surface the pending question instead of re-attaching the stream.
+        this.emitQuestionDetail(rec);
+      } else {
+        void this.reattach(rec);
+      }
+      log.info('task recovered', { id: rec.id, pid: rec.pid, status: rec.status });
     }
     await this.persist();
   }

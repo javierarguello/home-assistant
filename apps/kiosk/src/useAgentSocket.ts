@@ -136,5 +136,10 @@ export function useAgentSocket() {
     wsRef.current?.send(JSON.stringify(ev));
   }, []);
 
-  return { state, transcript, connected, wake, metrics, activity, tasks, details, send };
+  const sendTaskAnswer = useCallback((taskId: string, answer: string) => {
+    const ev: ClientEvent = { type: 'task-answer', taskId, answer };
+    wsRef.current?.send(JSON.stringify(ev));
+  }, []);
+
+  return { state, transcript, connected, wake, metrics, activity, tasks, details, send, sendTaskAnswer };
 }

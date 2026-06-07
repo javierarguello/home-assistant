@@ -8,6 +8,7 @@ import { LlmAgent } from '@google/adk';
 import type { ModelConfig } from '../../config/env.js';
 import { buildModel } from '../../llm/resolve-model.js';
 import { githubTools } from '../../tools/github.js';
+import { interactiveTools } from './interactive-tools.js';
 
 const PROMPT = [
   'You are a GitHub investigator agent working a single delegated task in the background.',
@@ -30,6 +31,6 @@ export function createGithubWorker(model: ModelConfig): LlmAgent {
     description: 'Investigates GitHub repositories: commits, diffs between refs, PRs, deployments.',
     model: buildModel(model),
     instruction: PROMPT,
-    tools: githubTools,
+    tools: [...githubTools, ...interactiveTools],
   });
 }

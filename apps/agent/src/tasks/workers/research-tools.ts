@@ -71,25 +71,6 @@ const webResearchTool = new FunctionTool({
   },
 });
 
-const requestFeedbackTool = new FunctionTool({
-  name: 'request_feedback',
-  description:
-    'Stop and ask the user for feedback/clarification when the task is ambiguous, blocked, or a major ' +
-    'decision is needed. After calling this, END your turn and output your question (plus what you have ' +
-    'so far) as your final answer — the assistant will relay it and the user can respond with a new task.',
-  parameters: z.object({
-    question: z.string().describe('The specific question for the user.'),
-  }),
-  execute: async ({ question }) => {
-    return {
-      acknowledged: true,
-      instruction:
-        'Now end your turn. Your final message must clearly be a request for feedback: state the question, ' +
-        'then briefly summarize your progress and the current plan so the user can decide.',
-      question,
-      plan: renderPlan(),
-    };
-  },
-});
-
-export const researchTools = [updatePlanTool, webResearchTool, requestFeedbackTool];
+// To stop and ask the user, the worker uses the shared `ask_user` tool
+// (see ./interactive-tools.ts), which pauses the task until the user answers.
+export const researchTools = [updatePlanTool, webResearchTool];

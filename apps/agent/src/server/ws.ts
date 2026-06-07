@@ -19,6 +19,10 @@ const log = createLogger('ws');
 export interface WsHandlers {
   onText?: (text: string) => void;
   onInterrupt?: () => void;
+  /** User answered (or gave more context to) a background task. */
+  onTaskAnswer?: (taskId: string, answer: string) => void;
+  /** User asked what a background task is doing. */
+  onTaskStatus?: (taskId: string) => void;
 }
 
 export interface WsServer {
@@ -77,6 +81,9 @@ export function startWsServer(port: number, handlers: WsHandlers = {}): WsServer
         const msg = JSON.parse(raw.toString()) as ClientEvent;
         if (msg.type === 'text' && msg.text.trim()) handlers.onText?.(msg.text.trim());
         else if (msg.type === 'interrupt') handlers.onInterrupt?.();
+        else if (msg.type === 'task-answer' && msg.taskId && msg.answer.trim())
+          handlers.onTaskAnswer?.(msg.taskId, msg.answer.trim());
+        else if (msg.type === 'task-status' && msg.taskId) handlers.onTaskStatus?.(msg.taskId);
       } catch {
         /* ignore malformed messages */
       }
