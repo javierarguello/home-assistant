@@ -11,6 +11,9 @@ import { startWsServer } from './server/ws.js';
 import { startConsolidationSchedule } from './memory/consolidate.js';
 import { setDetailSink } from './tools/detail.js';
 import { taskManager } from './tasks/instance.js';
+import { createStt, type SttEngine } from './stt/index.js';
+import { pushAudioToWav } from './audio/push-to-talk.js';
+import { unlink } from 'node:fs/promises';
 
 const log = createLogger('main');
 
@@ -36,9 +39,27 @@ console.log(`[home-assistant] mode=${mode} · logs → ${logFilePath}`);
 const convo = new Conversation();
 await convo.init();
 
+// Lazy STT for kiosk push-to-talk (works in any mode, incl. headless).
+let pttStt: SttEngine | undefined;
+async function handlePushAudio(audio: string, mime: string): Promise<void> {
+  let wav: string | undefined;
+  try {
+    pttStt ??= createStt();
+    wav = await pushAudioToWav(audio, mime);
+    const text = (await pttStt.transcribe(wav)).trim();
+    log.info('push-to-talk', { text });
+    if (text) await convo.handle(text);
+  } catch (e) {
+    log.error('push-to-talk failed', e);
+  } finally {
+    if (wav) void unlink(wav).catch(() => {});
+  }
+}
+
 const ws = config.wsEnabled
   ? startWsServer(config.wsPort, {
       onText: (text) => void convo.handle(text),
+      onPushAudio: (audio, mime) => void handlePushAudio(audio, mime),
       // A kiosk answered a worker's question (or asked what it's doing).
       onTaskAnswer: (taskId, answer) => {
         if (!config.tasks.enabled) return;

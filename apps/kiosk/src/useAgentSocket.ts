@@ -141,5 +141,13 @@ export function useAgentSocket() {
     wsRef.current?.send(JSON.stringify(ev));
   }, []);
 
-  return { state, transcript, connected, wake, metrics, activity, tasks, details, send, sendTaskAnswer };
+  const sendPushAudio = useCallback((audio: string, mime: string) => {
+    const ev: ClientEvent = { type: 'push-audio', audio, mime };
+    wsRef.current?.send(JSON.stringify(ev));
+  }, []);
+
+  return {
+    state, transcript, connected, wake, metrics, activity, tasks, details,
+    send, sendTaskAnswer, sendPushAudio,
+  };
 }

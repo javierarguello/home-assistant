@@ -92,6 +92,7 @@ export type ClientEvent =
   | { type: 'text'; text: string } // type a message instead of speaking
   | { type: 'interrupt' } // stop current speech / cancel turn
   | { type: 'task-answer'; taskId: string; answer: string } // answer a worker's question
-  | { type: 'task-status'; taskId: string }; // ask what a worker is doing
+  | { type: 'task-status'; taskId: string } // ask what a worker is doing
+  | { type: 'push-audio'; audio: string; mime: string }; // push-to-talk: base64 audio clip
 
 export const WS_DEFAULT_PORT = 8787;

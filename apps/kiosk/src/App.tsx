@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type M
 import type { AgentState, Detail, TaskInfo } from '@home-assistant/shared';
 import { chime, enableChimeOnInteraction } from './chime.js';
 import { Starfield } from './Starfield.js';
+import { PushToTalk } from './PushToTalk.js';
 import {
   useAgentSocket,
   type Metrics,
@@ -367,7 +368,7 @@ function DetailSidebar({
 }
 
 export function App() {
-  const { state, transcript, connected, wake, metrics, activity, tasks, details, send, sendTaskAnswer } =
+  const { state, transcript, connected, wake, metrics, activity, tasks, details, send, sendTaskAnswer, sendPushAudio } =
     useAgentSocket();
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -502,6 +503,7 @@ export function App() {
           autoComplete="off"
         />
         <button type="submit">TRANSMITIR</button>
+        <PushToTalk onAudio={sendPushAudio} />
       </form>
     </div>
   );

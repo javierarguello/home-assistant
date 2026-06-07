@@ -4,13 +4,12 @@ Ideas not yet scheduled. See the roadmap in the README for the current phase.
 
 ## Kiosk
 
-- **Push-to-talk button (no wake word).** A button in the kiosk that records audio
-  while held down (WhatsApp-style: press-and-hold to record, release to send), then
-  sends the captured audio straight to the agent as a command — bypassing the wake
-  word entirely. Needs: a kiosk UI control (hold to record, visual recording state),
-  capture mic audio in the browser (MediaRecorder), and a path to deliver the audio
-  to the agent for STT → the normal turn pipeline (e.g. a new client→server WS
-  message carrying the audio, handled alongside the existing typed-text path).
+- **Push-to-talk button (no wake word).** DONE — hold the 🎙 button to record
+  (MediaRecorder), release to send a `push-audio` event; the agent transcodes it
+  (ffmpeg → 16 kHz WAV), runs STT, and handles it as a turn. Caveat: getUserMedia
+  needs a secure context, so open the kiosk at `http://localhost:5173` on the Pi
+  (plain-http access from another LAN device is blocked by the browser). Possible
+  follow-up: serve the kiosk over HTTPS for remote push-to-talk.
 
 ## Background agents (interactive layer) — DONE (pending live verification)
 

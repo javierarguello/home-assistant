@@ -23,6 +23,8 @@ export interface WsHandlers {
   onTaskAnswer?: (taskId: string, answer: string) => void;
   /** User asked what a background task is doing. */
   onTaskStatus?: (taskId: string) => void;
+  /** Push-to-talk: a base64 audio clip to transcribe + run as a turn. */
+  onPushAudio?: (audio: string, mime: string) => void;
 }
 
 export interface WsServer {
@@ -84,6 +86,7 @@ export function startWsServer(port: number, handlers: WsHandlers = {}): WsServer
         else if (msg.type === 'task-answer' && msg.taskId && msg.answer.trim())
           handlers.onTaskAnswer?.(msg.taskId, msg.answer.trim());
         else if (msg.type === 'task-status' && msg.taskId) handlers.onTaskStatus?.(msg.taskId);
+        else if (msg.type === 'push-audio' && msg.audio) handlers.onPushAudio?.(msg.audio, msg.mime);
       } catch {
         /* ignore malformed messages */
       }
