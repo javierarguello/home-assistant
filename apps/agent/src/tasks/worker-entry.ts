@@ -42,9 +42,11 @@ async function main(): Promise<void> {
     log.error('unknown worker kind', { kind });
     process.exit(2);
   }
-  const needsAnalysis = process.env.WORKER_NEEDS_ANALYSIS === 'true';
   const spec = WORKERS[kind];
-  const model = spec.resolveModel(needsAnalysis);
+  const model = spec.resolveModel({
+    needsCodeAnalysis: process.env.WORKER_NEEDS_ANALYSIS === 'true',
+    deep: process.env.WORKER_DEEP === 'true',
+  });
   const agent = spec.build(model);
 
   const host = config.tasks.host;

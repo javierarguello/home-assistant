@@ -33,7 +33,7 @@ finishes. Off by default — enable with `TASKS_ENABLED=true`.
 | kind | What it does | Tools | Model |
 |------|--------------|-------|-------|
 | `github` | Investigates a repo: commits, diffs between refs, PRs, deployments | `github_*` | cheap by default; Pro only when `needsCodeAnalysis` |
-| `research` | Deep web research: plans, searches, cross-checks, synthesizes | `update_plan`, `web_research`, `request_feedback` | stronger model with **thinking on** (`WORKER_RESEARCH_*`) |
+| `research` | Web research: plans, searches, cross-checks, synthesizes | `update_plan`, `web_research`, `request_feedback` | fast `WORKER_RESEARCH_*` by default; **deep** investigations escalate to `WORKER_RESEARCH_DEEP_*` (thinking on for both) |
 
 ### The research worker
 
@@ -46,9 +46,11 @@ DuckDuckGo).
 ## Model policy (cheapest-first)
 
 - Every worker defaults to the cheap model: `WORKER_*` → falls back to `LLM_*`.
-- A task escalates to `WORKER_ANALYSIS_*` **only** when the root sets
+- A github task escalates to `WORKER_ANALYSIS_*` **only** when the root sets
   `needsCodeAnalysis: true` (reasoning over code).
-- The research worker always uses `WORKER_RESEARCH_*` (a strong model, thinking on).
+- The research worker uses the fast `WORKER_RESEARCH_*` by default, and escalates to
+  `WORKER_RESEARCH_DEEP_*` **only** when the user asks for a deep/thorough
+  investigation (the root sets `deep: true`). Both have thinking on.
 - Task summaries (on reap) use the cheap model — and need a **static API key**
   (skipped under `AUTH=gcloud`, same as memory consolidation).
 

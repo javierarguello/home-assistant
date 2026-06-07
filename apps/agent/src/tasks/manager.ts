@@ -164,26 +164,33 @@ export class TaskManager {
   }
 
   /** Starts a background task; returns its id immediately (does not block). */
-  async start(input: { kind: string; request: string; needsCodeAnalysis?: boolean }): Promise<TaskInfo> {
+  async start(input: {
+    kind: string;
+    request: string;
+    needsCodeAnalysis?: boolean;
+    deep?: boolean;
+  }): Promise<TaskInfo> {
     if (!isWorkerKind(input.kind)) throw new Error(`unknown task kind "${input.kind}"`);
     const running = [...this.registry.values()].filter((r) => r.status === 'running' || r.status === 'starting');
     if (running.length >= config.tasks.maxConcurrent) {
       throw new Error(`too many tasks running (${running.length}/${config.tasks.maxConcurrent}); try again shortly`);
     }
+    const opts = { needsCodeAnalysis: !!input.needsCodeAnalysis, deep: !!input.deep };
     const rec: TaskRecord = {
       id: randomUUID().slice(0, 8),
       kind: input.kind,
       title: input.request.slice(0, 80),
       request: input.request,
       status: 'starting',
-      analysis: !!input.needsCodeAnalysis,
+      // "analysis" = escalated to a stronger model (code analysis or deep research).
+      analysis: opts.needsCodeAnalysis || opts.deep,
       startedAt: Date.now(),
       lastActivityAt: Date.now(),
     };
     this.registry.set(rec.id, rec);
     this.emit(rec);
 
-    const { child, agentCard, pid } = await this.spawnWorker(rec.kind, rec.analysis);
+    const { child, agentCard, pid } = await this.spawnWorker(rec.kind, opts);
     rec.pid = pid;
     rec.agentCardUrl = agentCard;
     this.children.set(rec.id, child);
@@ -217,12 +224,16 @@ export class TaskManager {
 
   private spawnWorker(
     kind: WorkerKind,
-    needsAnalysis: boolean,
+    opts: { needsCodeAnalysis: boolean; deep: boolean },
   ): Promise<{ child: ChildProcess; agentCard: string; pid: number }> {
     return new Promise((resolve, reject) => {
       const child = spawn(process.execPath, ['--import', 'tsx', WORKER_ENTRY, '--kind', kind], {
         detached: true, // survive parent death
-        env: { ...process.env, WORKER_NEEDS_ANALYSIS: String(needsAnalysis) },
+        env: {
+          ...process.env,
+          WORKER_NEEDS_ANALYSIS: String(opts.needsCodeAnalysis),
+          WORKER_DEEP: String(opts.deep),
+        },
         stdio: ['ignore', 'pipe', 'ignore'],
       });
       const timer = setTimeout(() => reject(new Error('worker start timeout')), 20_000);

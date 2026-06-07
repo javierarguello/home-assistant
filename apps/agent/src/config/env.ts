@@ -93,12 +93,15 @@ export function readWorkerModel(needsCodeAnalysis: boolean): ModelConfig {
 }
 
 /**
- * Model for the research worker: a stronger model with reasoning/thinking ON by
- * default. Override via `WORKER_RESEARCH_*`; falls back to the analysis/worker
- * models then `LLM_*`.
+ * Model for the research worker (reasoning/thinking ON). Fast by default
+ * (`WORKER_RESEARCH_*`); when the user asks for a deep/thorough investigation it
+ * escalates to the stronger `WORKER_RESEARCH_DEEP_*`. Both fall back down to
+ * `WORKER_*` then `LLM_*`.
  */
-export function readResearchModel(): ModelConfig {
-  return layeredModel(['WORKER_RESEARCH', 'WORKER_ANALYSIS', 'WORKER'], true);
+export function readResearchModel(deep: boolean): ModelConfig {
+  return deep
+    ? layeredModel(['WORKER_RESEARCH_DEEP', 'WORKER_RESEARCH', 'WORKER_ANALYSIS', 'WORKER'], true)
+    : layeredModel(['WORKER_RESEARCH', 'WORKER'], true);
 }
 
 export type SttProvider = 'whisper-local' | 'whisper-server' | 'openai' | 'gemini' | 'mock';

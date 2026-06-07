@@ -30,14 +30,22 @@ export const startTaskTool = new FunctionTool({
       .boolean()
       .optional()
       .describe(
-        'Set true ONLY when the task requires analyzing or reasoning about code (e.g. review a diff, ' +
-          'assess risk of changes). This escalates to a stronger, costlier model. Leave false/omitted ' +
-          'for lookups like listing commits, PRs, or deployments.',
+        'github only: set true ONLY when the task requires analyzing or reasoning about code (e.g. ' +
+          'review a diff, assess risk of changes). Escalates to a stronger, costlier model. Leave ' +
+          'false for lookups like listing commits, PRs, or deployments.',
+      ),
+    deep: z
+      .boolean()
+      .optional()
+      .describe(
+        'research only: set true when the user asks for a DEEP/thorough/exhaustive investigation ' +
+          '("deep", "profundo", "a fondo", "exhaustivo"). Escalates to a stronger, slower model. ' +
+          'Leave false for a quick/normal research.',
       ),
   }),
-  execute: async ({ kind, request, needsCodeAnalysis }) => {
+  execute: async ({ kind, request, needsCodeAnalysis, deep }) => {
     try {
-      const info = await taskManager().start({ kind, request, needsCodeAnalysis });
+      const info = await taskManager().start({ kind, request, needsCodeAnalysis, deep });
       return { taskId: info.id, kind: info.kind, status: 'started' };
     } catch (error) {
       return { error: (error as Error).message };
