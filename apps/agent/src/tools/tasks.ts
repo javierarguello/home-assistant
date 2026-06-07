@@ -7,11 +7,15 @@
  */
 import { FunctionTool } from '@google/adk';
 import { z } from 'zod/v4';
+import { config } from '../config/env.js';
 import { taskManager } from '../tasks/instance.js';
 import { WORKERS } from '../tasks/workers/index.js';
 import { recentSummaries } from '../tasks/bank.js';
 
-const KINDS = Object.keys(WORKERS) as [string, ...string[]];
+// Only offer the github worker when GitHub is enabled (research is always on).
+const KINDS = (Object.keys(WORKERS) as string[]).filter(
+  (k) => k !== 'github' || config.tools.github,
+) as [string, ...string[]];
 
 export const startTaskTool = new FunctionTool({
   name: 'start_task',

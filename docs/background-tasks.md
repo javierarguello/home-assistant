@@ -43,16 +43,20 @@ each turn, and can **stop to ask the user** (`request_feedback`) when blocked or
 ambiguous. Its web search reuses the configured backend (`TAVILY_API_KEY` / Brave /
 DuckDuckGo).
 
-## Model policy (cheapest-first)
+## Model policy (tiered)
 
-- Every worker defaults to the cheap model: `WORKER_*` → falls back to `LLM_*`.
-- A github task escalates to `WORKER_ANALYSIS_*` **only** when the root sets
-  `needsCodeAnalysis: true` (reasoning over code).
-- The research worker uses the fast `WORKER_RESEARCH_*` by default, and escalates to
-  `WORKER_RESEARCH_DEEP_*` **only** when the user asks for a deep/thorough
-  investigation (the root sets `deep: true`). Both have thinking on.
-- Task summaries (on reap) use the cheap model — and need a **static API key**
-  (skipped under `AUTH=gcloud`, same as memory consolidation).
+| Context | Model | When |
+|---------|-------|------|
+| Root assistant (general chat, web_search) | **lite** (`LLM_MODEL`) | always |
+| GitHub worker | **flash** (`WORKER_MODEL`) | default |
+| GitHub worker | **pro** (`WORKER_ANALYSIS_MODEL`) | root sets `needsCodeAnalysis: true` (reasoning over code) |
+| Research worker | **flash** (`WORKER_RESEARCH_MODEL`) | default |
+| Research worker | **pro** (`WORKER_RESEARCH_DEEP_MODEL`) | root sets `deep: true` (user asked for a deep/thorough investigation) |
+
+GitHub runs **as a task** (not inline on the root), so even simple lookups (list
+commits, PR status) use flash rather than the lite root model. Task summaries (on
+reap) use the cheap model — and need a **static API key** (skipped under
+`AUTH=gcloud`, same as memory consolidation).
 
 ## Controlling tasks
 

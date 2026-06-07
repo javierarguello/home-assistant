@@ -2,7 +2,6 @@ import { LlmAgent } from '@google/adk';
 import { config } from '../config/env.js';
 import { resolveModel } from '../llm/resolve-model.js';
 import { webSearchTool } from '../tools/web-search.js';
-import { githubTools } from '../tools/github.js';
 import { taskTools } from '../tools/tasks.js';
 import { rememberTool, recallTool } from '../tools/memory.js';
 import { allFacts } from '../memory/store.js';
@@ -96,7 +95,8 @@ export const rootAgent = new LlmAgent({
   instruction,
   tools: [
     ...(config.tools.webSearch ? [webSearchTool] : []),
-    ...(config.tools.github ? githubTools : []),
+    // GitHub runs as a background task (flash, escalating to pro for code
+    // analysis) rather than inline on the root model — see start_task.
     ...(config.tasks.enabled ? taskTools : []),
     ...(config.memory.enabled ? [rememberTool, recallTool] : []),
   ],
