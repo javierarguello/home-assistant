@@ -76,9 +76,10 @@ export async function searchSummaries(query: string, limit = 5): Promise<TaskSum
 }
 
 const SUMMARY_PROMPT = [
-  "You write a one- to two-sentence recap of a background task the assistant just finished, for its memory.",
-  'Capture the request and the key result/finding only; plain prose, no markdown. Be specific (numbers,',
-  'repo/branch names) but brief. Return ONLY the recap sentence(s), nothing else.',
+  'You write a short recap of a background task the assistant just finished, for its memory so it can',
+  'tell the user about it later. In 2–4 sentences capture the request and the key findings/result —',
+  'be specific (numbers, names, repo/branch, the actual answer). Plain prose, no markdown. Return ONLY',
+  'the recap, nothing else.',
 ].join(' ');
 
 /**

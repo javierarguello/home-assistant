@@ -348,6 +348,9 @@ export class TaskManager {
     if (result) rec.result = result.trim();
     this.emit(rec);
     void this.persist();
+    // Bank the summarized output now (not only on idle reap), so the root can
+    // answer about it the moment the worker finishes.
+    if (status === 'completed') void this.bankResult(rec);
     const label = WORKERS[rec.kind].label;
     if (config.tasks.announce && this.opts.announce) {
       this.opts.announce(
@@ -368,19 +371,28 @@ export class TaskManager {
     }
   }
 
-  /** Summarises a finished task into the bank, then kills its worker process. */
+  /**
+   * Summarises a task's output into the bank (≤ bankMax). Runs on completion and
+   * again as a fallback on reap; the `banked` guard makes it idempotent.
+   */
+  private async bankResult(rec: TaskRecord): Promise<void> {
+    if (!rec.result || rec.banked) return;
+    rec.banked = true; // set first to avoid a double-bank race (finish + reap)
+    try {
+      const summary = (await summarizeTask(rec.request, rec.result)) ?? rec.result.slice(0, 400);
+      await addSummary(rec.kind, rec.title, summary);
+      await this.persist();
+    } catch (e) {
+      rec.banked = false; // let a later reap retry
+      log.error('bank result failed', { id: rec.id, err: (e as Error).message });
+    }
+  }
+
+  /** Banks the output (if not already), then kills the idle worker process. */
   private async reap(rec: TaskRecord): Promise<void> {
+    await this.bankResult(rec);
     this.killWorker(rec);
     this.registry.delete(rec.id);
-    try {
-      if (rec.result && !rec.banked) {
-        const summary = (await summarizeTask(rec.request, rec.result)) ?? rec.result.slice(0, 240);
-        await addSummary(rec.kind, rec.title, summary);
-        rec.banked = true;
-      }
-    } catch (e) {
-      log.error('task reap summary failed', { id: rec.id, err: (e as Error).message });
-    }
     await this.persist();
     log.info('task reaped (idle)', { id: rec.id });
   }
